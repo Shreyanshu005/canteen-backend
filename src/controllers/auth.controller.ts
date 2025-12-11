@@ -102,6 +102,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
         res.status(200).json({
             success: true,
             token,
+            role: user.role,
         });
     } catch (err: any) {
         console.error(err);
