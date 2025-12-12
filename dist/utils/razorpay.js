@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPaymentLinkDetails = exports.getPaymentDetails = exports.verifyWebhookSignature = exports.verifyPaymentSignature = exports.createPaymentLink = void 0;
+exports.getRazorpayOrderDetails = exports.getPaymentDetails = exports.verifyWebhookSignature = exports.verifyPaymentSignature = exports.createRazorpayOrder = void 0;
 const razorpay_1 = __importDefault(require("razorpay"));
 const crypto_1 = __importDefault(require("crypto"));
 /**
@@ -21,38 +21,26 @@ const getRazorpayInstance = () => {
     });
 };
 /**
- * Create a Razorpay Payment Link
+ * Create a Razorpay Order (for Standard Checkout)
  */
-const createPaymentLink = async (orderId, amount, customerName, customerEmail, customerPhone) => {
+const createRazorpayOrder = async (orderId, amount, receipt) => {
     try {
         const razorpay = getRazorpayInstance();
-        const paymentLinkData = {
+        const orderData = {
             amount: amount * 100, // Convert to paise (₹1 = 100 paise)
             currency: 'INR',
-            description: `Payment for Order ${orderId}`,
-            customer: {
-                name: customerName,
-                email: customerEmail,
-                contact: customerPhone,
-            },
-            notify: {
-                sms: true,
-                email: true,
-            },
-            reminder_enable: true,
-            callback_url: `${process.env.FRONTEND_URL}/payment/callback`,
-            callback_method: 'get',
-            reference_id: orderId, // Our order ID for reference
+            receipt: receipt || orderId, // Use our order ID as receipt
+            payment_capture: 1, // Auto capture payment
         };
-        const paymentLink = await razorpay.paymentLink.create(paymentLinkData);
-        return paymentLink;
+        const razorpayOrder = await razorpay.orders.create(orderData);
+        return razorpayOrder;
     }
     catch (error) {
-        console.error('Razorpay payment link creation error:', error);
-        throw new Error('Failed to create payment link');
+        console.error('Razorpay order creation error:', error);
+        throw new Error('Failed to create Razorpay order');
     }
 };
-exports.createPaymentLink = createPaymentLink;
+exports.createRazorpayOrder = createRazorpayOrder;
 /**
  * Verify Razorpay payment signature
  */
@@ -62,7 +50,7 @@ const verifyPaymentSignature = (razorpayOrderId, razorpayPaymentId, razorpaySign
         if (!keySecret) {
             throw new Error('Razorpay secret key not configured');
         }
-        // Create signature string
+        // Create signature string: order_id|payment_id
         const signatureData = `${razorpayOrderId}|${razorpayPaymentId}`;
         // Generate expected signature
         const expectedSignature = crypto_1.default
@@ -114,25 +102,25 @@ const getPaymentDetails = async (paymentId) => {
 };
 exports.getPaymentDetails = getPaymentDetails;
 /**
- * Get payment link details
+ * Get order details from Razorpay
  */
-const getPaymentLinkDetails = async (paymentLinkId) => {
+const getRazorpayOrderDetails = async (razorpayOrderId) => {
     try {
         const razorpay = getRazorpayInstance();
-        const paymentLink = await razorpay.paymentLink.fetch(paymentLinkId);
-        return paymentLink;
+        const order = await razorpay.orders.fetch(razorpayOrderId);
+        return order;
     }
     catch (error) {
-        console.error('Error fetching payment link details:', error);
-        throw new Error('Failed to fetch payment link details');
+        console.error('Error fetching order details:', error);
+        throw new Error('Failed to fetch order details');
     }
 };
-exports.getPaymentLinkDetails = getPaymentLinkDetails;
+exports.getRazorpayOrderDetails = getRazorpayOrderDetails;
 exports.default = {
-    createPaymentLink: exports.createPaymentLink,
+    createRazorpayOrder: exports.createRazorpayOrder,
     verifyPaymentSignature: exports.verifyPaymentSignature,
     verifyWebhookSignature: exports.verifyWebhookSignature,
     getPaymentDetails: exports.getPaymentDetails,
-    getPaymentLinkDetails: exports.getPaymentLinkDetails,
+    getRazorpayOrderDetails: exports.getRazorpayOrderDetails,
 };
 //# sourceMappingURL=razorpay.js.map

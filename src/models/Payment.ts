@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IPayment extends Document {
     orderId: mongoose.Types.ObjectId;
-    razorpayPaymentLinkId: string;
+    razorpayOrderId: string;
     razorpayPaymentId?: string;
     amount: number;
     status: 'initiated' | 'success' | 'failed';
@@ -18,7 +18,7 @@ const PaymentSchema: Schema = new Schema(
             ref: 'Order',
             required: true,
         },
-        razorpayPaymentLinkId: {
+        razorpayOrderId: {
             type: String,
             required: true,
         },

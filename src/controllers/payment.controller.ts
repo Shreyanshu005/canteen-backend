@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import Order from '../models/Order';
 import Payment from '../models/Payment';
 import User from '../models/User';
-import { createPaymentLink, getPaymentDetails, verifyWebhookSignature } from '../utils/razorpay';
+import { createRazorpayOrder, verifyPaymentSignature, getPaymentDetails, verifyWebhookSignature } from '../utils/razorpay';
 import { generateOrderQR } from '../utils/qrGenerator';
 
 // @desc    Initiate payment for an order
@@ -45,37 +45,26 @@ export const initiatePayment = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, error: 'Cannot pay for cancelled order' });
         }
 
-        // Get user details
-        const user = await User.findById(req.user?._id);
-        if (!user) {
-            return res.status(404).json({ success: false, error: 'User not found' });
-        }
-
-        // Check if payment link already exists for this order
+        // Check if Razorpay order already exists for this order
         let payment = await Payment.findOne({ orderId: order._id });
 
         if (!payment || payment.status === 'failed') {
-            // Create Razorpay payment link
-            const email: string = user.email || '';
-            const customerName = email.split('@')[0] || 'Customer';
-
-            const paymentLink = await createPaymentLink(
+            // Create Razorpay order
+            const razorpayOrder = await createRazorpayOrder(
                 order.orderId,
                 order.totalAmount,
-                customerName,
-                email,
-                '9999999999' // Default phone, can be updated when User model has phone field
+                order.orderId
             );
 
             // Create or update payment record
             if (payment) {
-                payment.razorpayPaymentLinkId = paymentLink.id;
+                payment.razorpayOrderId = razorpayOrder.id;
                 payment.status = 'initiated';
                 await payment.save();
             } else {
                 payment = await Payment.create({
                     orderId: order._id,
-                    razorpayPaymentLinkId: paymentLink.id,
+                    razorpayOrderId: razorpayOrder.id,
                     amount: order.totalAmount,
                     status: 'initiated',
                 });
@@ -84,22 +73,24 @@ export const initiatePayment = async (req: Request, res: Response) => {
             return res.status(200).json({
                 success: true,
                 data: {
-                    paymentLink: paymentLink.short_url, // Razorpay hosted page URL
-                    paymentLinkId: paymentLink.id,
+                    razorpayOrderId: razorpayOrder.id,
+                    razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+                    amount: razorpayOrder.amount,
+                    currency: razorpayOrder.currency,
                     orderId: order.orderId,
-                    amount: order.totalAmount,
                 },
             });
         }
 
-        // Return existing payment link
+        // Return existing Razorpay order
         res.status(200).json({
             success: true,
             data: {
-                paymentLinkId: payment.razorpayPaymentLinkId,
+                razorpayOrderId: payment.razorpayOrderId,
+                razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+                amount: payment.amount * 100,
+                currency: 'INR',
                 orderId: order.orderId,
-                amount: order.totalAmount,
-                message: 'Payment link already exists',
             },
         });
     } catch (err: any) {
@@ -108,22 +99,32 @@ export const initiatePayment = async (req: Request, res: Response) => {
     }
 };
 
-// @desc    Verify payment after redirect from Razorpay
+// @desc    Verify payment after checkout
 // @route   POST /api/v1/payments/verify
 // @access  Private
 export const verifyPayment = async (req: Request, res: Response) => {
     try {
-        const { razorpayPaymentId, razorpayPaymentLinkId } = req.body;
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
 
-        if (!razorpayPaymentId || !razorpayPaymentLinkId) {
+        if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
             return res.status(400).json({
                 success: false,
-                error: 'Payment ID and Payment Link ID are required'
+                error: 'Order ID, Payment ID, and Signature are required'
             });
         }
 
-        // Find payment by payment link ID
-        const payment = await Payment.findOne({ razorpayPaymentLinkId });
+        // Verify signature
+        const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+
+        if (!isValid) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid payment signature'
+            });
+        }
+
+        // Find payment by Razorpay order ID
+        const payment = await Payment.findOne({ razorpayOrderId });
         if (!payment) {
             return res.status(404).json({ success: false, error: 'Payment not found' });
         }
@@ -171,7 +172,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
             return res.status(400).json({
                 success: false,
-                error: 'Payment failed or not captured',
+                error: 'Payment not captured',
                 data: order,
             });
         }
@@ -208,18 +209,18 @@ export const handleWebhook = async (req: Request, res: Response) => {
         // Handle payment.captured event
         if (event === 'payment.captured') {
             const razorpayPaymentId = paymentEntity.id;
+            const razorpayOrderId = paymentEntity.order_id;
 
-            // Find payment by razorpay payment ID or payment link reference
-            const payment = await Payment.findOne({
-                razorpayPaymentId: razorpayPaymentId
-            });
+            // Find payment by Razorpay order ID
+            const payment = await Payment.findOne({ razorpayOrderId });
 
             if (!payment) {
-                console.error(`Payment not found for webhook: ${razorpayPaymentId}`);
+                console.error(`Payment not found for webhook: ${razorpayOrderId}`);
                 return res.status(404).json({ success: false, error: 'Payment not found' });
             }
 
             // Update payment status
+            payment.razorpayPaymentId = razorpayPaymentId;
             payment.status = 'success';
             payment.paymentMethod = paymentEntity.method;
             await payment.save();
@@ -244,9 +245,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
         // Handle payment.failed event
         if (event === 'payment.failed') {
-            const razorpayPaymentId = paymentEntity.id;
+            const razorpayOrderId = paymentEntity.order_id;
 
-            const payment = await Payment.findOne({ razorpayPaymentId });
+            const payment = await Payment.findOne({ razorpayOrderId });
             if (payment) {
                 payment.status = 'failed';
                 await payment.save();

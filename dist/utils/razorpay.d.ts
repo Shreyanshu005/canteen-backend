@@ -1,7 +1,7 @@
 /**
- * Create a Razorpay Payment Link
+ * Create a Razorpay Order (for Standard Checkout)
  */
-export declare const createPaymentLink: (orderId: string, amount: number, customerName: string, customerEmail: string, customerPhone: string) => Promise<import("razorpay/dist/types/paymentLink").PaymentLinks.RazorpayPaymentLink>;
+export declare const createRazorpayOrder: (orderId: string, amount: number, receipt?: string) => Promise<import("razorpay/dist/types/orders").Orders.RazorpayOrder>;
 /**
  * Verify Razorpay payment signature
  */
@@ -15,15 +15,15 @@ export declare const verifyWebhookSignature: (webhookBody: string, webhookSignat
  */
 export declare const getPaymentDetails: (paymentId: string) => Promise<import("razorpay/dist/types/payments").Payments.RazorpayPayment>;
 /**
- * Get payment link details
+ * Get order details from Razorpay
  */
-export declare const getPaymentLinkDetails: (paymentLinkId: string) => Promise<import("razorpay/dist/types/paymentLink").PaymentLinks.RazorpayPaymentLink>;
+export declare const getRazorpayOrderDetails: (razorpayOrderId: string) => Promise<import("razorpay/dist/types/orders").Orders.RazorpayOrder>;
 declare const _default: {
-    createPaymentLink: (orderId: string, amount: number, customerName: string, customerEmail: string, customerPhone: string) => Promise<import("razorpay/dist/types/paymentLink").PaymentLinks.RazorpayPaymentLink>;
+    createRazorpayOrder: (orderId: string, amount: number, receipt?: string) => Promise<import("razorpay/dist/types/orders").Orders.RazorpayOrder>;
     verifyPaymentSignature: (razorpayOrderId: string, razorpayPaymentId: string, razorpaySignature: string) => boolean;
     verifyWebhookSignature: (webhookBody: string, webhookSignature: string) => boolean;
     getPaymentDetails: (paymentId: string) => Promise<import("razorpay/dist/types/payments").Payments.RazorpayPayment>;
-    getPaymentLinkDetails: (paymentLinkId: string) => Promise<import("razorpay/dist/types/paymentLink").PaymentLinks.RazorpayPaymentLink>;
+    getRazorpayOrderDetails: (razorpayOrderId: string) => Promise<import("razorpay/dist/types/orders").Orders.RazorpayOrder>;
 };
 export default _default;
 //# sourceMappingURL=razorpay.d.ts.map

@@ -19,42 +19,28 @@ const getRazorpayInstance = () => {
 };
 
 /**
- * Create a Razorpay Payment Link
+ * Create a Razorpay Order (for Standard Checkout)
  */
-export const createPaymentLink = async (
+export const createRazorpayOrder = async (
     orderId: string,
     amount: number,
-    customerName: string,
-    customerEmail: string,
-    customerPhone: string
+    receipt?: string
 ) => {
     try {
         const razorpay = getRazorpayInstance();
 
-        const paymentLinkData = {
+        const orderData = {
             amount: amount * 100, // Convert to paise (₹1 = 100 paise)
             currency: 'INR',
-            description: `Payment for Order ${orderId}`,
-            customer: {
-                name: customerName,
-                email: customerEmail,
-                contact: customerPhone,
-            },
-            notify: {
-                sms: true,
-                email: true,
-            },
-            reminder_enable: true,
-            callback_url: `${process.env.FRONTEND_URL}/payment/callback`,
-            callback_method: 'get',
-            reference_id: orderId, // Our order ID for reference
+            receipt: receipt || orderId, // Use our order ID as receipt
+            payment_capture: 1, // Auto capture payment
         };
 
-        const paymentLink = await razorpay.paymentLink.create(paymentLinkData);
-        return paymentLink;
+        const razorpayOrder = await razorpay.orders.create(orderData);
+        return razorpayOrder;
     } catch (error: any) {
-        console.error('Razorpay payment link creation error:', error);
-        throw new Error('Failed to create payment link');
+        console.error('Razorpay order creation error:', error);
+        throw new Error('Failed to create Razorpay order');
     }
 };
 
@@ -73,7 +59,7 @@ export const verifyPaymentSignature = (
             throw new Error('Razorpay secret key not configured');
         }
 
-        // Create signature string
+        // Create signature string: order_id|payment_id
         const signatureData = `${razorpayOrderId}|${razorpayPaymentId}`;
 
         // Generate expected signature
@@ -130,23 +116,23 @@ export const getPaymentDetails = async (paymentId: string) => {
 };
 
 /**
- * Get payment link details
+ * Get order details from Razorpay
  */
-export const getPaymentLinkDetails = async (paymentLinkId: string) => {
+export const getRazorpayOrderDetails = async (razorpayOrderId: string) => {
     try {
         const razorpay = getRazorpayInstance();
-        const paymentLink = await razorpay.paymentLink.fetch(paymentLinkId);
-        return paymentLink;
+        const order = await razorpay.orders.fetch(razorpayOrderId);
+        return order;
     } catch (error: any) {
-        console.error('Error fetching payment link details:', error);
-        throw new Error('Failed to fetch payment link details');
+        console.error('Error fetching order details:', error);
+        throw new Error('Failed to fetch order details');
     }
 };
 
 export default {
-    createPaymentLink,
+    createRazorpayOrder,
     verifyPaymentSignature,
     verifyWebhookSignature,
     getPaymentDetails,
-    getPaymentLinkDetails,
+    getRazorpayOrderDetails,
 };

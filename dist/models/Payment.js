@@ -40,7 +40,7 @@ const PaymentSchema = new mongoose_1.Schema({
         ref: 'Order',
         required: true,
     },
-    razorpayPaymentLinkId: {
+    razorpayOrderId: {
         type: String,
         required: true,
     },

@@ -1,7 +1,7 @@
 import mongoose, { Document } from 'mongoose';
 export interface IPayment extends Document {
     orderId: mongoose.Types.ObjectId;
-    razorpayPaymentLinkId: string;
+    razorpayOrderId: string;
     razorpayPaymentId?: string;
     amount: number;
     status: 'initiated' | 'success' | 'failed';
