@@ -1,0 +1,347 @@
+import type { Request, Response } from 'express';
+import Order from '../models/Order';
+import MenuItem from '../models/MenuItem';
+import Canteen from '../models/Canteen';
+import { generateOrderQR, verifyOrderQR as verifyQRCode } from '../utils/qrGenerator';
+
+// @desc    Create new order
+// @route   POST /api/v1/orders
+// @access  Private
+export const createOrder = async (req: Request, res: Response) => {
+    try {
+        const { canteenId, items } = req.body;
+        const userId = req.user?._id;
+
+        if (!canteenId || !items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide canteenId and items array',
+            });
+        }
+
+        // Verify canteen exists
+        const canteen = await Canteen.findById(canteenId);
+        if (!canteen) {
+            return res.status(404).json({ success: false, error: 'Canteen not found' });
+        }
+
+        // Validate and fetch menu items
+        const orderItems = [];
+        let totalAmount = 0;
+
+        for (const item of items) {
+            const { menuItemId, quantity } = item;
+
+            if (!menuItemId || !quantity || quantity < 1) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid item format. Provide menuItemId and quantity',
+                });
+            }
+
+            const menuItem = await MenuItem.findById(menuItemId);
+            if (!menuItem) {
+                return res.status(404).json({
+                    success: false,
+                    error: `Menu item ${menuItemId} not found`,
+                });
+            }
+
+            // Check if item belongs to the canteen
+            if (menuItem.canteenId.toString() !== canteenId) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Item ${menuItem.name} does not belong to this canteen`,
+                });
+            }
+
+            // Check availability
+            if (menuItem.availableQuantity < quantity) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Insufficient quantity for ${menuItem.name}. Available: ${menuItem.availableQuantity}`,
+                });
+            }
+
+            orderItems.push({
+                menuItemId: menuItem._id,
+                name: menuItem.name,
+                price: menuItem.price,
+                quantity,
+            });
+
+            totalAmount += menuItem.price * quantity;
+        }
+
+        // Create order
+        const order = await Order.create({
+            userId,
+            canteenId,
+            items: orderItems,
+            totalAmount,
+            status: 'pending',
+            paymentStatus: 'pending',
+        });
+
+        res.status(201).json({
+            success: true,
+            data: order,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Get my orders
+// @route   GET /api/v1/orders
+// @access  Private
+export const getMyOrders = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?._id;
+        const { status } = req.query;
+
+        const filter: any = { userId };
+        if (status) {
+            filter.status = status;
+        }
+
+        const orders = await Order.find(filter)
+            .populate('canteenId', 'name place')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: orders.length,
+            data: orders,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Get order by ID
+// @route   GET /api/v1/orders/:id
+// @access  Private
+export const getOrderById = async (req: Request, res: Response) => {
+    try {
+        const order = await Order.findById(req.params.id)
+            .populate('canteenId', 'name place')
+            .populate('userId', 'email');
+
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        // Check if user owns this order or is admin/canteen owner
+        const isOwner = order.userId._id.toString() === req.user?._id.toString();
+        const isAdmin = req.user?.role === 'admin';
+        const canteen = await Canteen.findById(order.canteenId);
+        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+
+        if (!isOwner && !isAdmin && !isCanteenOwner) {
+            return res.status(403).json({ success: false, error: 'Not authorized to view this order' });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: order,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Update order status
+// @route   PATCH /api/v1/orders/:id/status
+// @access  Private (Admin/Canteen Owner)
+export const updateOrderStatus = async (req: Request, res: Response) => {
+    try {
+        const { status } = req.body;
+        const validStatuses = ['preparing', 'ready', 'completed', 'cancelled'];
+
+        if (!status || !validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
+            });
+        }
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        // Check authorization
+        const canteen = await Canteen.findById(order.canteenId);
+        const isAdmin = req.user?.role === 'admin';
+        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+
+        if (!isAdmin && !isCanteenOwner) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to update this order',
+            });
+        }
+
+        // Validate status transition
+        if (order.paymentStatus !== 'success' && status !== 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot update status for unpaid orders',
+            });
+        }
+
+        order.status = status;
+        await order.save();
+
+        res.status(200).json({
+            success: true,
+            data: order,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Cancel order
+// @route   DELETE /api/v1/orders/:id
+// @access  Private
+export const cancelOrder = async (req: Request, res: Response) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        // Check if user owns this order
+        if (order.userId.toString() !== req.user?._id.toString()) {
+            return res.status(403).json({ success: false, error: 'Not authorized to cancel this order' });
+        }
+
+        // Can only cancel pending or paid orders (not preparing/ready/completed)
+        if (!['pending', 'paid'].includes(order.status)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Cannot cancel order in current status',
+            });
+        }
+
+        order.status = 'cancelled';
+        await order.save();
+
+        res.status(200).json({
+            success: true,
+            data: order,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Get canteen orders
+// @route   GET /api/v1/orders/canteen/:canteenId
+// @access  Private (Admin/Canteen Owner)
+export const getCanteenOrders = async (req: Request, res: Response) => {
+    try {
+        const { canteenId } = req.params;
+        const { status } = req.query;
+
+        const canteen = await Canteen.findById(canteenId);
+        if (!canteen) {
+            return res.status(404).json({ success: false, error: 'Canteen not found' });
+        }
+
+        // Check authorization
+        const isAdmin = req.user?.role === 'admin';
+        const isCanteenOwner = canteen.ownerId.toString() === req.user?._id.toString();
+
+        if (!isAdmin && !isCanteenOwner) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to view these orders',
+            });
+        }
+
+        const filter: any = { canteenId };
+        if (status) {
+            filter.status = status;
+        }
+
+        const orders = await Order.find(filter)
+            .populate('userId', 'email')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: orders.length,
+            data: orders,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Verify order QR code
+// @route   POST /api/v1/orders/verify-qr
+// @access  Private (Admin/Canteen Owner)
+export const verifyOrderQR = async (req: Request, res: Response) => {
+    try {
+        const { qrData } = req.body;
+
+        if (!qrData) {
+            return res.status(400).json({ success: false, error: 'QR data is required' });
+        }
+
+        // Verify QR code
+        const verified = verifyQRCode(qrData);
+        if (!verified) {
+            return res.status(400).json({ success: false, error: 'Invalid or expired QR code' });
+        }
+
+        const { orderId } = verified;
+
+        // Find order by orderId (not _id)
+        const order = await Order.findOne({ orderId })
+            .populate('canteenId', 'name place')
+            .populate('userId', 'email');
+
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        // Check authorization
+        const canteen = await Canteen.findById(order.canteenId);
+        const isAdmin = req.user?.role === 'admin';
+        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+
+        if (!isAdmin && !isCanteenOwner) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to verify orders for this canteen',
+            });
+        }
+
+        // Check if order is ready for pickup
+        if (order.status !== 'ready') {
+            return res.status(400).json({
+                success: false,
+                error: `Order is not ready for pickup. Current status: ${order.status}`,
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: order,
+            message: 'QR code verified successfully',
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
