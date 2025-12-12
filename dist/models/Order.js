@@ -57,7 +57,6 @@ const OrderItemSchema = new mongoose_1.Schema({
 const OrderSchema = new mongoose_1.Schema({
     orderId: {
         type: String,
-        required: true,
         unique: true,
     },
     userId: {

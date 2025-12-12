@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import Order from '../models/Order';
 import Payment from '../models/Payment';
 import User from '../models/User';
-import { createCashfreeOrder, getPaymentDetails } from '../utils/cashfree';
+import { createPaymentLink, getPaymentDetails, verifyWebhookSignature } from '../utils/razorpay';
 import { generateOrderQR } from '../utils/qrGenerator';
 
 // @desc    Initiate payment for an order
@@ -43,15 +43,15 @@ export const initiatePayment = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
 
-        // Check if payment already exists for this order
+        // Check if payment link already exists for this order
         let payment = await Payment.findOne({ orderId: order._id });
 
-        if (!payment) {
-            // Create Cashfree order
-            // TypeScript workaround: email is required in User model but TS doesn't know that
+        if (!payment || payment.status === 'failed') {
+            // Create Razorpay payment link
             const email: string = user.email || '';
             const customerName = email.split('@')[0] || 'Customer';
-            const cashfreeOrder = await createCashfreeOrder(
+
+            const paymentLink = await createPaymentLink(
                 order.orderId,
                 order.totalAmount,
                 customerName,
@@ -59,22 +59,39 @@ export const initiatePayment = async (req: Request, res: Response) => {
                 '9999999999' // Default phone, can be updated when User model has phone field
             );
 
-            // Create payment record
-            payment = await Payment.create({
-                orderId: order._id,
-                cashfreeOrderId: order.orderId,
-                paymentSessionId: cashfreeOrder.payment_session_id,
-                amount: order.totalAmount,
-                status: 'initiated',
+            // Create or update payment record
+            if (payment) {
+                payment.razorpayPaymentLinkId = paymentLink.id;
+                payment.status = 'initiated';
+                await payment.save();
+            } else {
+                payment = await Payment.create({
+                    orderId: order._id,
+                    razorpayPaymentLinkId: paymentLink.id,
+                    amount: order.totalAmount,
+                    status: 'initiated',
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                data: {
+                    paymentLink: paymentLink.short_url, // Razorpay hosted page URL
+                    paymentLinkId: paymentLink.id,
+                    orderId: order.orderId,
+                    amount: order.totalAmount,
+                },
             });
         }
 
+        // Return existing payment link
         res.status(200).json({
             success: true,
             data: {
-                paymentSessionId: payment.paymentSessionId,
+                paymentLinkId: payment.razorpayPaymentLinkId,
                 orderId: order.orderId,
                 amount: order.totalAmount,
+                message: 'Payment link already exists',
             },
         });
     } catch (err: any) {
@@ -83,19 +100,28 @@ export const initiatePayment = async (req: Request, res: Response) => {
     }
 };
 
-// @desc    Verify payment after redirect from Cashfree
+// @desc    Verify payment after redirect from Razorpay
 // @route   POST /api/v1/payments/verify
 // @access  Private
 export const verifyPayment = async (req: Request, res: Response) => {
     try {
-        const { orderId } = req.body;
+        const { razorpayPaymentId, razorpayPaymentLinkId } = req.body;
 
-        if (!orderId) {
-            return res.status(400).json({ success: false, error: 'Order ID is required' });
+        if (!razorpayPaymentId || !razorpayPaymentLinkId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Payment ID and Payment Link ID are required'
+            });
         }
 
-        // Find order by orderId (not _id)
-        const order = await Order.findOne({ orderId });
+        // Find payment by payment link ID
+        const payment = await Payment.findOne({ razorpayPaymentLinkId });
+        if (!payment) {
+            return res.status(404).json({ success: false, error: 'Payment not found' });
+        }
+
+        // Find order
+        const order = await Order.findById(payment.orderId);
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
@@ -105,29 +131,20 @@ export const verifyPayment = async (req: Request, res: Response) => {
             return res.status(403).json({ success: false, error: 'Not authorized' });
         }
 
-        // Get payment details from Cashfree
-        const paymentDetails = await getPaymentDetails(orderId);
-
-        if (!paymentDetails || paymentDetails.length === 0) {
-            return res.status(400).json({ success: false, error: 'No payment found for this order' });
-        }
-
-        const latestPayment = paymentDetails[0];
+        // Get payment details from Razorpay
+        const paymentDetails = await getPaymentDetails(razorpayPaymentId);
 
         // Update payment record
-        const payment = await Payment.findOne({ orderId: order._id });
-        if (payment) {
-            payment.status = latestPayment.payment_status === 'SUCCESS' ? 'success' : 'failed';
-            payment.transactionId = latestPayment.cf_payment_id;
-            payment.paymentMethod = latestPayment.payment_group;
-            await payment.save();
-        }
+        payment.razorpayPaymentId = razorpayPaymentId;
+        payment.status = paymentDetails.status === 'captured' ? 'success' : 'failed';
+        payment.paymentMethod = paymentDetails.method;
+        await payment.save();
 
         // Update order
-        if (latestPayment.payment_status === 'SUCCESS') {
+        if (paymentDetails.status === 'captured') {
             order.paymentStatus = 'success';
             order.status = 'paid';
-            order.paymentId = latestPayment.cf_payment_id;
+            order.paymentId = razorpayPaymentId;
 
             // Generate QR code
             const qrCode = await generateOrderQR(order.orderId);
@@ -146,7 +163,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
 
             return res.status(400).json({
                 success: false,
-                error: 'Payment failed',
+                error: 'Payment failed or not captured',
                 data: order,
             });
         }
@@ -156,65 +173,86 @@ export const verifyPayment = async (req: Request, res: Response) => {
     }
 };
 
-// @desc    Handle Cashfree webhook
+// @desc    Handle Razorpay webhook
 // @route   POST /api/v1/payments/webhook
 // @access  Public (but verified)
 export const handleWebhook = async (req: Request, res: Response) => {
     try {
-        const webhookData = req.body;
+        const webhookBody = JSON.stringify(req.body);
+        const webhookSignature = req.headers['x-razorpay-signature'] as string;
 
-        console.log('Webhook received:', JSON.stringify(webhookData, null, 2));
+        console.log('Webhook received:', JSON.stringify(req.body, null, 2));
 
         // Verify webhook signature
-        const signature = req.headers['x-webhook-signature'] as string;
-        const timestamp = req.headers['x-webhook-timestamp'] as string;
+        const isValid = verifyWebhookSignature(webhookBody, webhookSignature);
+        if (!isValid) {
+            console.error('Invalid webhook signature');
+            return res.status(400).json({ success: false, error: 'Invalid signature' });
+        }
 
-        // TODO: Implement signature verification
-        // For now, we'll process the webhook
+        const event = req.body.event;
+        const paymentEntity = req.body.payload?.payment?.entity;
 
-        const { order_id, payment_status, cf_payment_id, payment_group } = webhookData.data || {};
-
-        if (!order_id) {
+        if (!paymentEntity) {
             return res.status(400).json({ success: false, error: 'Invalid webhook data' });
         }
 
-        // Find order
-        const order = await Order.findOne({ orderId: order_id });
-        if (!order) {
-            console.error(`Order not found for webhook: ${order_id}`);
-            return res.status(404).json({ success: false, error: 'Order not found' });
-        }
+        // Handle payment.captured event
+        if (event === 'payment.captured') {
+            const razorpayPaymentId = paymentEntity.id;
 
-        // Update payment record
-        const payment = await Payment.findOne({ orderId: order._id });
-        if (payment) {
-            payment.status = payment_status === 'SUCCESS' ? 'success' : 'failed';
-            payment.transactionId = cf_payment_id;
-            payment.paymentMethod = payment_group;
-            await payment.save();
-        }
+            // Find payment by razorpay payment ID or payment link reference
+            const payment = await Payment.findOne({
+                razorpayPaymentId: razorpayPaymentId
+            });
 
-        // Update order
-        if (payment_status === 'SUCCESS') {
-            order.paymentStatus = 'success';
-            order.status = 'paid';
-            order.paymentId = cf_payment_id;
-
-            // Generate QR code if not already generated
-            if (!order.qrCode) {
-                const qrCode = await generateOrderQR(order.orderId);
-                order.qrCode = qrCode;
+            if (!payment) {
+                console.error(`Payment not found for webhook: ${razorpayPaymentId}`);
+                return res.status(404).json({ success: false, error: 'Payment not found' });
             }
 
-            await order.save();
-            console.log(`Order ${order_id} marked as paid`);
-        } else {
-            order.paymentStatus = 'failed';
-            await order.save();
-            console.log(`Order ${order_id} payment failed`);
+            // Update payment status
+            payment.status = 'success';
+            payment.paymentMethod = paymentEntity.method;
+            await payment.save();
+
+            // Update order
+            const order = await Order.findById(payment.orderId);
+            if (order) {
+                order.paymentStatus = 'success';
+                order.status = 'paid';
+                order.paymentId = razorpayPaymentId;
+
+                // Generate QR code if not already generated
+                if (!order.qrCode) {
+                    const qrCode = await generateOrderQR(order.orderId);
+                    order.qrCode = qrCode;
+                }
+
+                await order.save();
+                console.log(`Order ${order.orderId} marked as paid`);
+            }
         }
 
-        // Respond to Cashfree
+        // Handle payment.failed event
+        if (event === 'payment.failed') {
+            const razorpayPaymentId = paymentEntity.id;
+
+            const payment = await Payment.findOne({ razorpayPaymentId });
+            if (payment) {
+                payment.status = 'failed';
+                await payment.save();
+
+                const order = await Order.findById(payment.orderId);
+                if (order) {
+                    order.paymentStatus = 'failed';
+                    await order.save();
+                    console.log(`Order ${order.orderId} payment failed`);
+                }
+            }
+        }
+
+        // Respond to Razorpay
         res.status(200).json({ success: true });
     } catch (err: any) {
         console.error('Webhook error:', err);

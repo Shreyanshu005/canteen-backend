@@ -40,18 +40,16 @@ const PaymentSchema = new mongoose_1.Schema({
         ref: 'Order',
         required: true,
     },
-    cashfreeOrderId: {
+    razorpayPaymentLinkId: {
         type: String,
         required: true,
-        unique: true,
     },
-    paymentSessionId: {
+    razorpayPaymentId: {
         type: String,
     },
     amount: {
         type: Number,
         required: true,
-        min: 0,
     },
     status: {
         type: String,
@@ -59,9 +57,6 @@ const PaymentSchema = new mongoose_1.Schema({
         default: 'initiated',
     },
     paymentMethod: {
-        type: String,
-    },
-    transactionId: {
         type: String,
     },
 }, {

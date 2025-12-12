@@ -2,12 +2,11 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IPayment extends Document {
     orderId: mongoose.Types.ObjectId;
-    cashfreeOrderId: string;
-    paymentSessionId?: string;
+    razorpayPaymentLinkId: string;
+    razorpayPaymentId?: string;
     amount: number;
     status: 'initiated' | 'success' | 'failed';
     paymentMethod?: string;
-    transactionId?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -19,18 +18,16 @@ const PaymentSchema: Schema = new Schema(
             ref: 'Order',
             required: true,
         },
-        cashfreeOrderId: {
+        razorpayPaymentLinkId: {
             type: String,
             required: true,
-            unique: true,
         },
-        paymentSessionId: {
+        razorpayPaymentId: {
             type: String,
         },
         amount: {
             type: Number,
             required: true,
-            min: 0,
         },
         status: {
             type: String,
@@ -38,9 +35,6 @@ const PaymentSchema: Schema = new Schema(
             default: 'initiated',
         },
         paymentMethod: {
-            type: String,
-        },
-        transactionId: {
             type: String,
         },
     },
