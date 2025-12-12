@@ -11,13 +11,14 @@ import { protect } from '../middleware/auth.middleware';
 
 const router = express.Router();
 
-router.use(protect);
-
-router.post('/canteen/:canteenId', addMenuItem);
-router.put('/canteen/:canteenId/item/:itemId', updateMenuItem);
-router.patch('/canteen/:canteenId/item/:itemId/quantity', updateItemQuantity);
-router.delete('/canteen/:canteenId/item/:itemId', deleteMenuItem);
+// Public routes (no authentication required)
 router.get('/canteen/:canteenId', getCanteenMenu);
 router.get('/canteen/:canteenId/item/:itemId', getMenuItem);
+
+// Protected routes (authentication required)
+router.post('/canteen/:canteenId', protect, addMenuItem);
+router.put('/canteen/:canteenId/item/:itemId', protect, updateMenuItem);
+router.patch('/canteen/:canteenId/item/:itemId/quantity', protect, updateItemQuantity);
+router.delete('/canteen/:canteenId/item/:itemId', protect, deleteMenuItem);
 
 export default router;

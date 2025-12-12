@@ -10,13 +10,13 @@ import { protect } from '../middleware/auth.middleware';
 
 const router = express.Router();
 
-// Apply auth middleware to all routes
-router.use(protect);
-
-router.post('/', createOrUpdateCanteen); // Handling create and update via query param
+// Public routes (no authentication required)
 router.get('/', getAllCanteens);
-router.get('/my-canteens', getMyCanteens); // Must be before /:id
 router.get('/:id', getCanteenById);
-router.delete('/:id', deleteCanteen);
+
+// Protected routes (authentication required)
+router.post('/', protect, createOrUpdateCanteen);
+router.get('/my-canteens', protect, getMyCanteens);
+router.delete('/:id', protect, deleteCanteen);
 
 export default router;
