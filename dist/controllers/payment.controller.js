@@ -18,8 +18,16 @@ const initiatePayment = async (req, res) => {
         if (!orderId) {
             return res.status(400).json({ success: false, error: 'Order ID is required' });
         }
-        // Find order
-        const order = await Order_1.default.findById(orderId);
+        // Find order by either MongoDB _id or orderId field
+        let order;
+        if (orderId.match(/^[0-9a-fA-F]{24}$/)) {
+            // It's a MongoDB ObjectId
+            order = await Order_1.default.findById(orderId);
+        }
+        else {
+            // It's our custom orderId (e.g., ORD-XXX)
+            order = await Order_1.default.findOne({ orderId: orderId });
+        }
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
