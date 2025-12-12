@@ -327,18 +327,88 @@ export const verifyOrderQR = async (req: Request, res: Response) => {
             });
         }
 
-        // Check if order is ready for pickup
-        if (order.status !== 'ready') {
-            return res.status(400).json({
-                success: false,
-                error: `Order is not ready for pickup. Current status: ${order.status}`,
-            });
-        }
-
         res.status(200).json({
             success: true,
             data: order,
             message: 'QR code verified successfully',
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Complete order pickup using QR code
+// @route   POST /api/v1/orders/pickup
+// @access  Private (Admin/Canteen Owner)
+export const completeOrderPickup = async (req: Request, res: Response) => {
+    try {
+        const { qrData } = req.body;
+
+        if (!qrData) {
+            return res.status(400).json({ success: false, error: 'QR data is required' });
+        }
+
+        // Verify QR code
+        const verified = verifyQRCode(qrData);
+        if (!verified) {
+            return res.status(400).json({ success: false, error: 'Invalid or expired QR code' });
+        }
+
+        const { orderId } = verified;
+
+        // Find order
+        const order = await Order.findOne({ orderId });
+
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+
+        // Check authorization
+        const canteen = await Canteen.findById(order.canteenId);
+        const isAdmin = req.user?.role === 'admin';
+        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+
+        if (!isAdmin && !isCanteenOwner) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to complete orders for this canteen',
+            });
+        }
+
+        // Check if order is already completed or cancelled
+        if (order.status === 'completed') {
+            return res.status(400).json({
+                success: false,
+                error: 'Order already picked up/completed',
+                data: order
+            });
+        }
+
+        if (order.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                error: 'Order is cancelled',
+                data: order
+            });
+        }
+
+        if (order.paymentStatus !== 'success') {
+            return res.status(400).json({
+                success: false,
+                error: 'Payment not completed for this order',
+                data: order
+            });
+        }
+
+        // Update status to completed
+        order.status = 'completed';
+        await order.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Order pickup completed successfully',
+            data: order,
         });
     } catch (err: any) {
         console.error(err);

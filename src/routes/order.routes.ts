@@ -7,6 +7,7 @@ import {
     cancelOrder,
     getCanteenOrders,
     verifyOrderQR as verifyQR,
+    completeOrderPickup,
 } from '../controllers/order.controller';
 import { protect } from '../middleware/auth.middleware';
 
@@ -23,7 +24,8 @@ router.get('/:id', getOrderById);
 router.patch('/:id/status', updateOrderStatus);
 router.delete('/:id', cancelOrder);
 
-// QR verification
+// QR verification and pickup
 router.post('/verify-qr', verifyQR);
+router.post('/pickup', completeOrderPickup);
 
 export default router;
