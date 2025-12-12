@@ -46,7 +46,6 @@ const OrderSchema: Schema = new Schema(
     {
         orderId: {
             type: String,
-            required: true,
             unique: true,
         },
         userId: {

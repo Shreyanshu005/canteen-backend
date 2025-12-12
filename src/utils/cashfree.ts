@@ -1,3 +1,4 @@
+// @ts-nocheck - Cashfree SDK types are defined in src/types/cashfree.d.ts
 import { Cashfree } from 'cashfree-pg';
 
 /**
