@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.handleWebhook = exports.verifyPayment = exports.initiatePayment = void 0;
 const Order_1 = __importDefault(require("../models/Order"));
 const Payment_1 = __importDefault(require("../models/Payment"));
+const MenuItem_1 = __importDefault(require("../models/MenuItem"));
 const razorpay_1 = require("../utils/razorpay");
 const qrGenerator_1 = require("../utils/qrGenerator");
 // @desc    Initiate payment for an order
@@ -136,6 +137,14 @@ const verifyPayment = async (req, res) => {
             order.paymentStatus = 'success';
             order.status = 'paid';
             order.paymentId = razorpayPaymentId;
+            // Deduct quantities from menu items
+            for (const item of order.items) {
+                const menuItem = await MenuItem_1.default.findById(item.menuItemId);
+                if (menuItem) {
+                    menuItem.availableQuantity -= item.quantity;
+                    await menuItem.save();
+                }
+            }
             // Generate QR code
             const qrCode = await (0, qrGenerator_1.generateOrderQR)(order.orderId);
             order.qrCode = qrCode;

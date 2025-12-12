@@ -6,4 +6,5 @@ export declare const updateOrderStatus: (req: Request, res: Response) => Promise
 export declare const cancelOrder: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const getCanteenOrders: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const verifyOrderQR: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const completeOrderPickup: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=order.controller.d.ts.map

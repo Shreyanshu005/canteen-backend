@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyOrderQR = exports.getCanteenOrders = exports.cancelOrder = exports.updateOrderStatus = exports.getOrderById = exports.getMyOrders = exports.createOrder = void 0;
+exports.completeOrderPickup = exports.verifyOrderQR = exports.getCanteenOrders = exports.cancelOrder = exports.updateOrderStatus = exports.getOrderById = exports.getMyOrders = exports.createOrder = void 0;
 const Order_1 = __importDefault(require("../models/Order"));
 const MenuItem_1 = __importDefault(require("../models/MenuItem"));
 const Canteen_1 = __importDefault(require("../models/Canteen"));
@@ -293,13 +293,6 @@ const verifyOrderQR = async (req, res) => {
                 error: 'Not authorized to verify orders for this canteen',
             });
         }
-        // Check if order is ready for pickup
-        if (order.status !== 'ready') {
-            return res.status(400).json({
-                success: false,
-                error: `Order is not ready for pickup. Current status: ${order.status}`,
-            });
-        }
         res.status(200).json({
             success: true,
             data: order,
@@ -312,4 +305,71 @@ const verifyOrderQR = async (req, res) => {
     }
 };
 exports.verifyOrderQR = verifyOrderQR;
+// @desc    Complete order pickup using QR code
+// @route   POST /api/v1/orders/pickup
+// @access  Private (Admin/Canteen Owner)
+const completeOrderPickup = async (req, res) => {
+    try {
+        const { qrData } = req.body;
+        if (!qrData) {
+            return res.status(400).json({ success: false, error: 'QR data is required' });
+        }
+        // Verify QR code
+        const verified = (0, qrGenerator_1.verifyOrderQR)(qrData);
+        if (!verified) {
+            return res.status(400).json({ success: false, error: 'Invalid or expired QR code' });
+        }
+        const { orderId } = verified;
+        // Find order
+        const order = await Order_1.default.findOne({ orderId });
+        if (!order) {
+            return res.status(404).json({ success: false, error: 'Order not found' });
+        }
+        // Check authorization
+        const canteen = await Canteen_1.default.findById(order.canteenId);
+        const isAdmin = req.user?.role === 'admin';
+        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+        if (!isAdmin && !isCanteenOwner) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to complete orders for this canteen',
+            });
+        }
+        // Check if order is already completed or cancelled
+        if (order.status === 'completed') {
+            return res.status(400).json({
+                success: false,
+                error: 'Order already picked up/completed',
+                data: order
+            });
+        }
+        if (order.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                error: 'Order is cancelled',
+                data: order
+            });
+        }
+        if (order.paymentStatus !== 'success') {
+            return res.status(400).json({
+                success: false,
+                error: 'Payment not completed for this order',
+                data: order
+            });
+        }
+        // Update status to completed
+        order.status = 'completed';
+        await order.save();
+        res.status(200).json({
+            success: true,
+            message: 'Order pickup completed successfully',
+            data: order,
+        });
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+exports.completeOrderPickup = completeOrderPickup;
 //# sourceMappingURL=order.controller.js.map

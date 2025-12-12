@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import Order from '../models/Order';
 import Payment from '../models/Payment';
 import User from '../models/User';
+import MenuItem from '../models/MenuItem';
 import { createRazorpayOrder, verifyPaymentSignature, getPaymentDetails, verifyWebhookSignature } from '../utils/razorpay';
 import { generateOrderQR } from '../utils/qrGenerator';
 
@@ -154,6 +155,15 @@ export const verifyPayment = async (req: Request, res: Response) => {
             order.paymentStatus = 'success';
             order.status = 'paid';
             order.paymentId = razorpayPaymentId;
+
+            // Deduct quantities from menu items
+            for (const item of order.items) {
+                const menuItem = await MenuItem.findById(item.menuItemId);
+                if (menuItem) {
+                    menuItem.availableQuantity -= item.quantity;
+                    await menuItem.save();
+                }
+            }
 
             // Generate QR code
             const qrCode = await generateOrderQR(order.orderId);
