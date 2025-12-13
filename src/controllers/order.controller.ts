@@ -157,9 +157,18 @@ export const getMyOrders = async (req: Request, res: Response) => {
 // @access  Private
 export const getOrderById = async (req: Request, res: Response) => {
     try {
-        const order = await Order.findById(req.params.id)
-            .populate('canteenId', 'name place')
-            .populate('userId', 'email');
+        const { id } = req.params;
+        let order;
+
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+            order = await Order.findById(id)
+                .populate('canteenId', 'name place')
+                .populate('userId', 'email');
+        } else {
+            order = await Order.findOne({ orderId: id })
+                .populate('canteenId', 'name place')
+                .populate('userId', 'email');
+        }
 
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
@@ -200,7 +209,15 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
             });
         }
 
-        const order = await Order.findById(req.params.id);
+        const { id } = req.params;
+        let order;
+
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+            order = await Order.findById(id);
+        } else {
+            order = await Order.findOne({ orderId: id });
+        }
+
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
@@ -243,7 +260,15 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 // @access  Private
 export const cancelOrder = async (req: Request, res: Response) => {
     try {
-        const order = await Order.findById(req.params.id);
+        const { id } = req.params;
+        let order;
+
+        if (id && id.match(/^[0-9a-fA-F]{24}$/)) {
+            order = await Order.findById(id);
+        } else {
+            order = await Order.findOne({ orderId: id });
+        }
+
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }

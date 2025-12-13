@@ -113,7 +113,7 @@ export const verifyOtp = async (req: Request, res: Response) => {
         const token = jwt.sign(
             { id: user._id, role: user.role },
             process.env.JWT_SECRET || 'secret',
-            { expiresIn: '30d' }
+            { expiresIn: (process.env.JWT_EXPIRE || '30d') as any }
         );
 
         res.status(200).json({

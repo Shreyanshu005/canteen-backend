@@ -99,7 +99,7 @@ const verifyOtp = async (req, res) => {
         user.otpExpires = undefined;
         await user.save();
         // Create token
-        const token = jsonwebtoken_1.default.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '30d' });
+        const token = jsonwebtoken_1.default.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: (process.env.JWT_EXPIRE || '30d') });
         res.status(200).json({
             success: true,
             token,
