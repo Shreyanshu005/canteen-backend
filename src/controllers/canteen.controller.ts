@@ -136,8 +136,17 @@ export const deleteCanteen = async (req: Request, res: Response) => {
 // @access  Private
 export const getMyCanteens = async (req: Request, res: Response) => {
     try {
+        console.log('Fetching canteens for user:', req.user?._id);
+
+        if (!req.user?._id) {
+            console.error('User ID not found in req.user');
+            return res.status(401).json({ success: false, error: 'User not authenticated properly' });
+        }
+
         // Assuming req.user is populated by auth middleware
-        const canteens = await Canteen.find({ ownerId: req.user?._id });
+        const canteens = await Canteen.find({ ownerId: req.user._id });
+
+        console.log(`Found ${canteens.length} canteens for user ${req.user._id}`);
 
         res.status(200).json({
             success: true,
@@ -145,7 +154,7 @@ export const getMyCanteens = async (req: Request, res: Response) => {
             data: canteens,
         });
     } catch (err: any) {
-        console.error(err);
+        console.error('Error in getMyCanteens:', err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
