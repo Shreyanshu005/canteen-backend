@@ -90,6 +90,11 @@ export const getAllCanteens = async (req: Request, res: Response) => {
 // @access  Private
 export const getCanteenById = async (req: Request, res: Response) => {
     try {
+        // FAILSAFE: If "my-canteens" accidentally hits this route, return next() or handle it
+        if (req.params.id === 'my-canteens') {
+            return getMyCanteens(req, res);
+        }
+
         const canteen = await Canteen.findById(req.params.id).populate('ownerId', 'email role');
 
         if (!canteen) {
