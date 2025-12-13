@@ -16,7 +16,8 @@ router.get('/:id', getCanteenById);
 
 // Protected routes (authentication required)
 router.post('/', protect, createOrUpdateCanteen);
-router.get('/my-canteens', protect, getMyCanteens);
+router.get('/my-canteens', protect, getMyCanteens); // specific route first
+router.get('/:id', getCanteenById); // wildcard route last
 router.delete('/:id', protect, deleteCanteen);
 
 export default router;
