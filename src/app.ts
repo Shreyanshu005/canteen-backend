@@ -34,12 +34,14 @@ import canteenRoutes from './routes/canteen.routes';
 import menuRoutes from './routes/menu.routes';
 import orderRoutes from './routes/order.routes';
 import paymentRoutes from './routes/payment.routes';
+import analyticsRoutes from './routes/analytics.routes';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/canteens', canteenRoutes);
 app.use('/api/v1/menu', menuRoutes);
 app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/analytics', analyticsRoutes);
 
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

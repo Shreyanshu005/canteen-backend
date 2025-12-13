@@ -26,15 +26,32 @@ export const sendOtp = async (req: Request, res: Response) => {
         }
 
         // Generate random 6 digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        let otp = Math.floor(100000 + Math.random() * 900000).toString();
+        let otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+        // SPECIAL HANDLING: Demo User for App Store Review
+        // Allows login without accessing email
+        if (email.toLowerCase() === 'demo@canteen.com') {
+            console.log('🔹 Demo User Login Detected');
+            otp = '123456';
+            otpExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+        }
 
         // Save crypto to database
         console.log('Saving user to DB...');
         user.otp = otp;
-        user.otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        user.otpExpires = otpExpires;
         await user.save();
-        console.log('User saved. Sending Email...');
 
+        if (email.toLowerCase() === 'demo@canteen.com') {
+            console.log(`✅ Demo OTP set to 123456 for ${email}`);
+            return res.status(200).json({
+                success: true,
+                data: 'OTP sent to email',
+            });
+        }
+
+        console.log('User saved. Sending Email...');
         console.log(`OTP for ${email}: ${otp}`);
 
         const message = `Your OTP is ${otp} `;
