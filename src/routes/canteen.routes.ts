@@ -12,12 +12,13 @@ const router = express.Router();
 
 // Public routes (no authentication required)
 router.get('/', getAllCanteens);
-router.get('/:id', getCanteenById);
 
-// Protected routes (authentication required)
+// 1. Specific Routes (Must come first)
+router.get('/my-canteens', protect, getMyCanteens);
+
+// 2. Wildcard Routes (Must come last)
+router.get('/:id', getCanteenById);        // Public
 router.post('/', protect, createOrUpdateCanteen);
-router.get('/my-canteens', protect, getMyCanteens); // specific route first
-router.get('/:id', getCanteenById); // wildcard route last
 router.delete('/:id', protect, deleteCanteen);
 
 export default router;
