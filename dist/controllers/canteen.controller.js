@@ -89,6 +89,10 @@ exports.getAllCanteens = getAllCanteens;
 // @access  Private
 const getCanteenById = async (req, res) => {
     try {
+        // FAILSAFE: If "my-canteens" accidentally hits this route, return next() or handle it
+        if (req.params.id === 'my-canteens') {
+            return (0, exports.getMyCanteens)(req, res);
+        }
         const canteen = await Canteen_1.default.findById(req.params.id).populate('ownerId', 'email role');
         if (!canteen) {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
@@ -132,8 +136,14 @@ exports.deleteCanteen = deleteCanteen;
 // @access  Private
 const getMyCanteens = async (req, res) => {
     try {
+        console.log('Fetching canteens for user:', req.user?._id);
+        if (!req.user?._id) {
+            console.error('User ID not found in req.user');
+            return res.status(401).json({ success: false, error: 'User not authenticated properly' });
+        }
         // Assuming req.user is populated by auth middleware
-        const canteens = await Canteen_1.default.find({ ownerId: req.user?._id });
+        const canteens = await Canteen_1.default.find({ ownerId: req.user._id });
+        console.log(`Found ${canteens.length} canteens for user ${req.user._id}`);
         res.status(200).json({
             success: true,
             count: canteens.length,
@@ -141,7 +151,7 @@ const getMyCanteens = async (req, res) => {
         });
     }
     catch (err) {
-        console.error(err);
+        console.error('Error in getMyCanteens:', err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };

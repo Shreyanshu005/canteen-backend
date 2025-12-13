@@ -31,11 +31,13 @@ const canteen_routes_1 = __importDefault(require("./routes/canteen.routes"));
 const menu_routes_1 = __importDefault(require("./routes/menu.routes"));
 const order_routes_1 = __importDefault(require("./routes/order.routes"));
 const payment_routes_1 = __importDefault(require("./routes/payment.routes"));
+const analytics_routes_1 = __importDefault(require("./routes/analytics.routes"));
 app.use('/api/v1/auth', auth_routes_1.default);
 app.use('/api/v1/canteens', canteen_routes_1.default);
 app.use('/api/v1/menu', menu_routes_1.default);
 app.use('/api/v1/orders', order_routes_1.default);
 app.use('/api/v1/payments', payment_routes_1.default);
+app.use('/api/v1/analytics', analytics_routes_1.default);
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

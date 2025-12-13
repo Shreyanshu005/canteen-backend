@@ -1,36 +1,35 @@
-import type { Request, Response } from 'express';
-import Order from '../models/Order';
-import Canteen from '../models/Canteen';
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getEarningsBreakdown = exports.getCanteenAnalytics = void 0;
+const Order_1 = __importDefault(require("../models/Order"));
+const Canteen_1 = __importDefault(require("../models/Canteen"));
 // @desc    Get canteen analytics (sales, earnings, orders)
 // @route   GET /api/v1/analytics/canteen/:canteenId?period=day|week|month
 // @access  Private (Admin/Canteen Owner)
-export const getCanteenAnalytics = async (req: Request, res: Response) => {
+const getCanteenAnalytics = async (req, res) => {
     try {
         const { canteenId } = req.params;
         const { period = 'day' } = req.query;
-
         // Verify canteen exists
-        const canteen = await Canteen.findById(canteenId);
+        const canteen = await Canteen_1.default.findById(canteenId);
         if (!canteen) {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
         }
-
         // Check authorization
         const isAdmin = req.user?.role === 'admin';
         const isCanteenOwner = canteen.ownerId.toString() === req.user?._id.toString();
-
         if (!isAdmin && !isCanteenOwner) {
             return res.status(403).json({
                 success: false,
                 error: 'Not authorized to view analytics for this canteen',
             });
         }
-
         // Calculate date range based on period
         const now = new Date();
-        let startDate: Date;
-
+        let startDate;
         switch (period) {
             case 'day':
                 // Today (from midnight)
@@ -47,18 +46,15 @@ export const getCanteenAnalytics = async (req: Request, res: Response) => {
             default:
                 startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         }
-
         // Fetch orders for the period
-        const orders = await Order.find({
+        const orders = await Order_1.default.find({
             canteenId,
             paymentStatus: 'success', // Only count paid orders
             createdAt: { $gte: startDate },
         });
-
         // Calculate analytics
         const totalOrders = orders.length;
         const totalEarnings = orders.reduce((sum, order) => sum + order.totalAmount, 0);
-
         // Count orders by status
         const ordersByStatus = {
             paid: orders.filter(o => o.status === 'paid').length,
@@ -67,10 +63,8 @@ export const getCanteenAnalytics = async (req: Request, res: Response) => {
             completed: orders.filter(o => o.status === 'completed').length,
             cancelled: orders.filter(o => o.status === 'cancelled').length,
         };
-
         // Top selling items
-        const itemSales: { [key: string]: { name: string; quantity: number; revenue: number } } = {};
-
+        const itemSales = {};
         orders.forEach(order => {
             order.items.forEach(item => {
                 const key = item.menuItemId.toString();
@@ -85,15 +79,12 @@ export const getCanteenAnalytics = async (req: Request, res: Response) => {
                 itemSales[key].revenue += item.price * item.quantity;
             });
         });
-
         // Convert to array and sort by quantity
         const topItems = Object.values(itemSales)
             .sort((a, b) => b.quantity - a.quantity)
             .slice(0, 10); // Top 10 items
-
         // Average order value
         const averageOrderValue = totalOrders > 0 ? totalEarnings / totalOrders : 0;
-
         // Response
         res.status(200).json({
             success: true,
@@ -115,54 +106,48 @@ export const getCanteenAnalytics = async (req: Request, res: Response) => {
                 },
             },
         });
-    } catch (err: any) {
+    }
+    catch (err) {
         console.error(err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
-
+exports.getCanteenAnalytics = getCanteenAnalytics;
 // @desc    Get earnings breakdown by date
 // @route   GET /api/v1/analytics/canteen/:canteenId/earnings?period=week|month
 // @access  Private (Admin/Canteen Owner)
-export const getEarningsBreakdown = async (req: Request, res: Response) => {
+const getEarningsBreakdown = async (req, res) => {
     try {
         const { canteenId } = req.params;
         const { period = 'week' } = req.query;
-
         // Verify canteen exists
-        const canteen = await Canteen.findById(canteenId);
+        const canteen = await Canteen_1.default.findById(canteenId);
         if (!canteen) {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
         }
-
         // Check authorization
         const isAdmin = req.user?.role === 'admin';
         const isCanteenOwner = canteen.ownerId.toString() === req.user?._id.toString();
-
         if (!isAdmin && !isCanteenOwner) {
             return res.status(403).json({
                 success: false,
                 error: 'Not authorized to view analytics for this canteen',
             });
         }
-
         // Calculate date range
         const now = new Date();
         const days = period === 'month' ? 30 : 7;
         const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-
         // Fetch orders
-        const orders = await Order.find({
+        const orders = await Order_1.default.find({
             canteenId,
             paymentStatus: 'success',
             createdAt: { $gte: startDate },
         });
-
         // Group by date
-        const earningsByDate: { [key: string]: { date: string; earnings: number; orders: number } } = {};
-
+        const earningsByDate = {};
         orders.forEach(order => {
-            const dateKey = order.createdAt.toISOString().split('T')[0] as string; // YYYY-MM-DD
+            const dateKey = order.createdAt.toISOString().split('T')[0]; // YYYY-MM-DD
             if (!earningsByDate[dateKey]) {
                 earningsByDate[dateKey] = {
                     date: dateKey,
@@ -173,12 +158,8 @@ export const getEarningsBreakdown = async (req: Request, res: Response) => {
             earningsByDate[dateKey].earnings += order.totalAmount;
             earningsByDate[dateKey].orders += 1;
         });
-
         // Convert to array and sort by date
-        const breakdown = Object.values(earningsByDate).sort((a, b) =>
-            new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-
+        const breakdown = Object.values(earningsByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         res.status(200).json({
             success: true,
             data: {
@@ -190,8 +171,11 @@ export const getEarningsBreakdown = async (req: Request, res: Response) => {
                 },
             },
         });
-    } catch (err: any) {
+    }
+    catch (err) {
         console.error(err);
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
+exports.getEarningsBreakdown = getEarningsBreakdown;
+//# sourceMappingURL=analytics.controller.js.map
