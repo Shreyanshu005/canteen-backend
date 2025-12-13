@@ -4,6 +4,7 @@ interface EmailOptions {
     email: string;
     subject: string;
     message: string;
+    html?: string;
 }
 
 const sendEmail = async (options: EmailOptions) => {
@@ -22,7 +23,7 @@ const sendEmail = async (options: EmailOptions) => {
         to: options.email,
         subject: options.subject,
         text: options.message,
-        // html: options.message, // You can also use HTML
+        html: options.html || options.message,
     };
 
     console.log('Transporter ready. Sending mail...');

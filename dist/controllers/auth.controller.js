@@ -7,6 +7,7 @@ exports.verifyOtp = exports.sendOtp = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 const sendEmail_1 = __importDefault(require("../utils/sendEmail"));
+const emailTemplates_1 = require("../utils/emailTemplates");
 // @desc    Send OTP to email
 // @route   POST /api/v1/auth/email/send-otp
 // @access  Public
@@ -48,13 +49,15 @@ const sendOtp = async (req, res) => {
         }
         console.log('User saved. Sending Email...');
         console.log(`OTP for ${email}: ${otp}`);
-        const message = `Your OTP is ${otp} `;
+        const message = `Your OTP is ${otp}`;
+        const htmlContent = (0, emailTemplates_1.getOTPEmailTemplate)(otp);
         try {
             console.log('Calling sendEmail...');
             await (0, sendEmail_1.default)({
                 email: user.email,
-                subject: 'Canteen App OTP',
+                subject: '🔐 Your Canteen App Verification Code',
                 message,
+                html: htmlContent,
             });
             console.log('Email sent successfully.');
             res.status(200).json({

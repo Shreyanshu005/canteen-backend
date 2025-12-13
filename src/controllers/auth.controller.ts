@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User';
 
 import sendEmail from '../utils/sendEmail';
+import { getOTPEmailTemplate } from '../utils/emailTemplates';
 
 // @desc    Send OTP to email
 // @route   POST /api/v1/auth/email/send-otp
@@ -54,14 +55,16 @@ export const sendOtp = async (req: Request, res: Response) => {
         console.log('User saved. Sending Email...');
         console.log(`OTP for ${email}: ${otp}`);
 
-        const message = `Your OTP is ${otp} `;
+        const message = `Your OTP is ${otp}`;
+        const htmlContent = getOTPEmailTemplate(otp);
 
         try {
             console.log('Calling sendEmail...');
             await sendEmail({
                 email: user.email,
-                subject: 'Canteen App OTP',
+                subject: '🔐 Your Canteen App Verification Code',
                 message,
+                html: htmlContent,
             });
             console.log('Email sent successfully.');
 
