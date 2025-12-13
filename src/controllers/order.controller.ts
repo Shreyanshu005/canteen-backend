@@ -25,6 +25,37 @@ export const createOrder = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
         }
 
+        // Check if canteen is open (Manual)
+        if (canteen.isOpen === false) {
+            return res.status(400).json({ success: false, error: 'Canteen is currently closed (Manually Closed)' });
+        }
+
+        // Check operating hours (Automatic)
+        if (canteen.openingTime && canteen.closingTime) {
+            const now = new Date();
+            // Convert current time to minutes since midnight (IST handling might be needed if server is UTC)
+            // Assuming server time aligns with canteen hours or using local time
+
+            // For robust handling, better to use UTC or specific timezone library, 
+            // but for now relying on server local time matching user expectations or standardizing.
+            const currentHours = now.getHours();
+            const currentMinutes = now.getMinutes();
+            const currentTimeValue = currentHours * 60 + currentMinutes;
+
+            const [openH = 0, openM = 0] = canteen.openingTime.split(':').map(Number);
+            const openTimeValue = openH * 60 + openM;
+
+            const [closeH = 0, closeM = 0] = canteen.closingTime.split(':').map(Number);
+            const closeTimeValue = closeH * 60 + closeM;
+
+            if (currentTimeValue < openTimeValue || currentTimeValue > closeTimeValue) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Canteen is closed. Operating hours: ${canteen.openingTime} - ${canteen.closingTime}`
+                });
+            }
+        }
+
         // Validate and fetch menu items
         const orderItems = [];
         let totalAmount = 0;

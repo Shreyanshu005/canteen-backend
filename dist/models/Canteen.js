@@ -49,6 +49,16 @@ const CanteenSchema = new mongoose_1.Schema({
         ref: 'User',
         required: true,
     },
+    isOpen: {
+        type: Boolean,
+        default: true,
+    },
+    openingTime: {
+        type: String, // Format: "HH:MM" (Be cautious with validation if strictness needed)
+    },
+    closingTime: {
+        type: String, // Format: "HH:MM"
+    },
     createdAt: {
         type: Date,
         default: Date.now,

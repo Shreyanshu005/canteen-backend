@@ -14,6 +14,7 @@ router.get('/my-canteens', auth_middleware_1.protect, canteen_controller_1.getMy
 // 2. Wildcard Routes (Must come last)
 router.get('/:id', canteen_controller_1.getCanteenById); // Public
 router.post('/', auth_middleware_1.protect, canteen_controller_1.createOrUpdateCanteen);
+router.patch('/:id/status', auth_middleware_1.protect, canteen_controller_1.toggleCanteenStatus); // NEW: Toggle Status
 router.delete('/:id', auth_middleware_1.protect, canteen_controller_1.deleteCanteen);
 exports.default = router;
 //# sourceMappingURL=canteen.routes.js.map

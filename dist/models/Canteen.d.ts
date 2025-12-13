@@ -3,6 +3,9 @@ export interface ICanteen extends Document {
     name: string;
     place: string;
     ownerId: mongoose.Types.ObjectId;
+    isOpen: boolean;
+    openingTime?: string;
+    closingTime?: string;
     createdAt: Date;
 }
 declare const _default: mongoose.Model<ICanteen, {}, {}, {}, mongoose.Document<unknown, {}, ICanteen, {}, mongoose.DefaultSchemaOptions> & ICanteen & Required<{

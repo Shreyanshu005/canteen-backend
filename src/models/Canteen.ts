@@ -4,6 +4,9 @@ export interface ICanteen extends Document {
     name: string;
     place: string;
     ownerId: mongoose.Types.ObjectId;
+    isOpen: boolean;
+    openingTime?: string;
+    closingTime?: string;
     createdAt: Date;
 }
 
@@ -21,6 +24,16 @@ const CanteenSchema: Schema = new Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
+    },
+    isOpen: {
+        type: Boolean,
+        default: true,
+    },
+    openingTime: {
+        type: String, // Format: "HH:MM" (Be cautious with validation if strictness needed)
+    },
+    closingTime: {
+        type: String, // Format: "HH:MM"
     },
     createdAt: {
         type: Date,

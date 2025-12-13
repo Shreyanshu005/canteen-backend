@@ -23,12 +23,15 @@ export const createOrUpdateCanteen = async (req: Request, res: Response) => {
 
 const createCanteen = async (req: Request, res: Response) => {
     try {
-        const { name, place, ownerId } = req.body;
+        const { name, place, ownerId, isOpen, openingTime, closingTime } = req.body;
 
         const canteen = await Canteen.create({
             name,
             place,
             ownerId,
+            isOpen: isOpen !== undefined ? isOpen : true,
+            openingTime,
+            closingTime
         });
 
         res.status(201).json({
@@ -43,7 +46,7 @@ const createCanteen = async (req: Request, res: Response) => {
 
 const updateCanteen = async (req: Request, res: Response, id: string) => {
     try {
-        const { name, place, ownerId } = req.body;
+        const { name, place, ownerId, isOpen, openingTime, closingTime } = req.body;
 
         let canteen = await Canteen.findById(id);
 
@@ -54,13 +57,47 @@ const updateCanteen = async (req: Request, res: Response, id: string) => {
         // Update fields
         canteen.name = name || canteen.name;
         canteen.place = place || canteen.place;
-        canteen.ownerId = ownerId || canteen.ownerId; // Assuming admin can change owner
+        canteen.ownerId = ownerId || canteen.ownerId;
+        if (isOpen !== undefined) canteen.isOpen = isOpen;
+        if (openingTime !== undefined) canteen.openingTime = openingTime;
+        if (closingTime !== undefined) canteen.closingTime = closingTime;
 
         await canteen.save();
 
         res.status(200).json({
             success: true,
             data: canteen,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+
+// @desc    Toggle Canteen Status (Open/Close)
+// @route   PATCH /api/v1/canteens/:id/status
+// @access  Private (Owner/Admin)
+export const toggleCanteenStatus = async (req: Request, res: Response) => {
+    try {
+        const canteen = await Canteen.findById(req.params.id);
+
+        if (!canteen) {
+            return res.status(404).json({ success: false, error: 'Canteen not found' });
+        }
+
+        // Check ownership
+        if (canteen.ownerId.toString() !== req.user?._id.toString() && req.user?.role !== 'admin') {
+            return res.status(403).json({ success: false, error: 'Not authorized to update this canteen' });
+        }
+
+        // Toggle status
+        canteen.isOpen = !canteen.isOpen;
+        await canteen.save();
+
+        res.status(200).json({
+            success: true,
+            data: canteen,
+            message: `Canteen is now ${canteen.isOpen ? 'OPEN' : 'CLOSED'}`
         });
     } catch (err: any) {
         console.error(err);

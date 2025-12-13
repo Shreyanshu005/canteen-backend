@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getMyCanteens = exports.deleteCanteen = exports.getCanteenById = exports.getAllCanteens = exports.createOrUpdateCanteen = void 0;
+exports.getMyCanteens = exports.deleteCanteen = exports.getCanteenById = exports.getAllCanteens = exports.toggleCanteenStatus = exports.createOrUpdateCanteen = void 0;
 const Canteen_1 = __importDefault(require("../models/Canteen"));
 // @desc    Create or Update Canteen
 // @route   POST /api/v1/canteens
@@ -28,11 +28,14 @@ const createOrUpdateCanteen = async (req, res) => {
 exports.createOrUpdateCanteen = createOrUpdateCanteen;
 const createCanteen = async (req, res) => {
     try {
-        const { name, place, ownerId } = req.body;
+        const { name, place, ownerId, isOpen, openingTime, closingTime } = req.body;
         const canteen = await Canteen_1.default.create({
             name,
             place,
             ownerId,
+            isOpen: isOpen !== undefined ? isOpen : true,
+            openingTime,
+            closingTime
         });
         res.status(201).json({
             success: true,
@@ -46,7 +49,7 @@ const createCanteen = async (req, res) => {
 };
 const updateCanteen = async (req, res, id) => {
     try {
-        const { name, place, ownerId } = req.body;
+        const { name, place, ownerId, isOpen, openingTime, closingTime } = req.body;
         let canteen = await Canteen_1.default.findById(id);
         if (!canteen) {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
@@ -54,7 +57,13 @@ const updateCanteen = async (req, res, id) => {
         // Update fields
         canteen.name = name || canteen.name;
         canteen.place = place || canteen.place;
-        canteen.ownerId = ownerId || canteen.ownerId; // Assuming admin can change owner
+        canteen.ownerId = ownerId || canteen.ownerId;
+        if (isOpen !== undefined)
+            canteen.isOpen = isOpen;
+        if (openingTime !== undefined)
+            canteen.openingTime = openingTime;
+        if (closingTime !== undefined)
+            canteen.closingTime = closingTime;
         await canteen.save();
         res.status(200).json({
             success: true,
@@ -66,6 +75,34 @@ const updateCanteen = async (req, res, id) => {
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
+// @desc    Toggle Canteen Status (Open/Close)
+// @route   PATCH /api/v1/canteens/:id/status
+// @access  Private (Owner/Admin)
+const toggleCanteenStatus = async (req, res) => {
+    try {
+        const canteen = await Canteen_1.default.findById(req.params.id);
+        if (!canteen) {
+            return res.status(404).json({ success: false, error: 'Canteen not found' });
+        }
+        // Check ownership
+        if (canteen.ownerId.toString() !== req.user?._id.toString() && req.user?.role !== 'admin') {
+            return res.status(403).json({ success: false, error: 'Not authorized to update this canteen' });
+        }
+        // Toggle status
+        canteen.isOpen = !canteen.isOpen;
+        await canteen.save();
+        res.status(200).json({
+            success: true,
+            data: canteen,
+            message: `Canteen is now ${canteen.isOpen ? 'OPEN' : 'CLOSED'}`
+        });
+    }
+    catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+exports.toggleCanteenStatus = toggleCanteenStatus;
 // @desc    Get All Canteens
 // @route   GET /api/v1/canteens
 // @access  Private
