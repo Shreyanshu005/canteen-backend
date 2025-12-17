@@ -1,23 +1,19 @@
-# Canteen Backend API - Complete Reference
+# Canteen Backend API Reference
 
-This document contains all API endpoints with curl examples and responses.
-
-## Base URL
-```
-http://localhost:5001/api/v1
-```
+Base URL: `http://localhost:5000/api/v1`
 
 ---
 
-## Authentication
+## 🔐 Authentication
 
 ### 1. Send OTP
-**Endpoint:** `POST /api/v1/auth/email/send-otp`
+**Endpoint:** `POST /auth/email/send-otp`
+**Public**
 
 ```bash
-curl -X POST http://localhost:5001/api/v1/auth/email/send-otp \
+curl -X POST http://localhost:5000/api/v1/auth/email/send-otp \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com"}'
+  -d '{"email": "test@example.com"}'
 ```
 
 **Response:**
@@ -28,223 +24,252 @@ curl -X POST http://localhost:5001/api/v1/auth/email/send-otp \
 }
 ```
 
-### 2. Verify OTP (Login)
-**Endpoint:** `POST /api/v1/auth/email/verify-otp`
+### 2. Verify OTP
+**Endpoint:** `POST /auth/email/verify-otp`
+**Public**
 
 ```bash
-curl -X POST http://localhost:5001/api/v1/auth/email/verify-otp \
+curl -X POST http://localhost:5000/api/v1/auth/email/verify-otp \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@example.com", "otp": "123456"}'
+  -d '{"email": "test@example.com", "otp": "123456"}'
 ```
 
 **Response:**
 ```json
 {
   "success": true,
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token": "eyJhbGciOi...",
   "role": "user"
 }
 ```
+*Use this token in the `Authorization` header for all protected routes: `Bearer <TOKEN>`*
 
-> **Note:** Save the token for authenticated requests: `Authorization: Bearer <TOKEN>`
+### 3. Delete Account
+**Endpoint:** `DELETE /auth/me`
+**Private**
+
+```bash
+curl -X DELETE http://localhost:5000/api/v1/auth/me \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Account deleted successfully"
+}
+```
 
 ---
 
-## Canteens
+## 🏪 Canteen Management
 
-### 3. Create Canteen
+### 3. Get All Canteens
+**Endpoint:** `GET /canteens`
+**Public**
+
 ```bash
-curl -X POST http://localhost:5001/api/v1/canteens \
-  -H "Content-Type: application/json" \
+curl -X GET http://localhost:5000/api/v1/canteens
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "_id": "693b010b3ab6f068202b736b",
+      "name": "Main Canteen",
+      "place": "Block A",
+      "isOpen": true,
+      "openingTime": "09:00",
+      "closingTime": "18:00"
+    }
+  ]
+}
+```
+
+### 4. Create Canteen (Admin/Owner)
+**Endpoint:** `POST /canteens`
+**Private**
+
+```bash
+curl -X POST http://localhost:5000/api/v1/canteens \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"name": "Tech Cafe", "place": "Building 5", "ownerId": "<USER_ID>"}'
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Tech Cafe",
+    "place": "IT Block",
+    "ownerId": "USER_ID",
+    "openingTime": "08:00",
+    "closingTime": "20:00"
+  }'
 ```
 
-### 4. Get All Canteens
+### 5. Get My Canteens (Owner)
+**Endpoint:** `GET /canteens/my-canteens`
+**Private**
+
 ```bash
-curl -X GET http://localhost:5001/api/v1/canteens \
+curl -X GET http://localhost:5000/api/v1/canteens/my-canteens \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
-### 5. Get My Canteens
-```bash
-curl -X GET http://localhost:5001/api/v1/canteens/my-canteens \
-  -H "Authorization: Bearer <TOKEN>"
-```
+### 6. Toggle Canteen Status
+**Endpoint:** `PATCH /canteens/:id/status`
+**Private**
 
-### 6. Get Canteen by ID
 ```bash
-curl -X GET http://localhost:5001/api/v1/canteens/<CANTEEN_ID> \
-  -H "Authorization: Bearer <TOKEN>"
-```
-
-### 7. Delete Canteen
-```bash
-curl -X DELETE http://localhost:5001/api/v1/canteens/<CANTEEN_ID> \
+curl -X PATCH http://localhost:5000/api/v1/canteens/693b010b3ab6f068202b736b/status \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
 ---
 
-## Menu Management
+## 🍔 Menu Management
+
+### 7. Get Canteen Menu
+**Endpoint:** `GET /menu/canteen/:canteenId`
+**Public**
+
+```bash
+curl -X GET http://localhost:5000/api/v1/menu/canteen/693b010b3ab6f068202b736b
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "693b033e3ab6f068202b7384",
+      "name": "Samosa",
+      "price": 20,
+      "availableQuantity": 50,
+      "canteenId": "693b010b3ab6f068202b736b"
+    }
+  ]
+}
+```
 
 ### 8. Add Menu Item
+**Endpoint:** `POST /menu/canteen/:canteenId`
+**Private (Owner/Admin)**
+
 ```bash
-curl -X POST http://localhost:5001/api/v1/menu/canteen/<CANTEEN_ID> \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:5000/api/v1/menu/canteen/693b010b3ab6f068202b736b \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"name": "Veg Sandwich", "price": 40, "availableQuantity": 100}'
-```
-
-### 9. Get Canteen Menu
-```bash
-curl -X GET http://localhost:5001/api/v1/menu/canteen/<CANTEEN_ID> \
-  -H "Authorization: Bearer <TOKEN>"
-```
-
-### 10. Update Menu Item
-```bash
-curl -X PUT http://localhost:5001/api/v1/menu/canteen/<CANTEEN_ID>/item/<ITEM_ID> \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
-  -d '{"price": 45}'
+  -d '{
+    "name": "Veg Burger",
+    "price": 50,
+    "availableQuantity": 100
+  }'
 ```
 
-### 11. Update Item Quantity
+### 9. Update Menu Item
+**Endpoint:** `PUT /menu/canteen/:canteenId/item/:itemId`
+**Private**
+
 ```bash
-curl -X PATCH http://localhost:5001/api/v1/menu/canteen/<CANTEEN_ID>/item/<ITEM_ID>/quantity \
-  -H "Content-Type: application/json" \
+curl -X PUT http://localhost:5000/api/v1/menu/canteen/CID/item/IID \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"quantity": 95}'
+  -d '{"price": 60}'
 ```
 
-### 12. Delete Menu Item
+### 10. Update Item Quantity
+**Endpoint:** `PATCH /menu/canteen/:canteenId/item/:itemId/quantity`
+**Private**
+
 ```bash
-curl -X DELETE http://localhost:5001/api/v1/menu/canteen/<CANTEEN_ID>/item/<ITEM_ID> \
-  -H "Authorization: Bearer <TOKEN>"
+curl -X PATCH http://localhost:5000/api/v1/menu/canteen/CID/item/IID/quantity \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{"quantity": 0}'
 ```
 
 ---
 
-## Orders (NEW)
+## 📦 Order Management
 
-### 13. Create Order
-**Endpoint:** `POST /api/v1/orders`
+### 11. Create Order
+**Endpoint:** `POST /orders`
+**Private**
 
 ```bash
-curl -X POST http://localhost:5001/api/v1/orders \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:5000/api/v1/orders \
   -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
   -d '{
-    "canteenId": "<CANTEEN_ID>",
+    "canteenId": "693b010b3ab6f068202b736b",
     "items": [
-      {"menuItemId": "<ITEM_ID>", "quantity": 2},
-      {"menuItemId": "<ITEM_ID_2>", "quantity": 1}
+      { "menuItemId": "693b033e3ab6f068202b7384", "quantity": 2 }
     ]
   }'
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "orderId": "ORD-ABC123-XYZ",
-    "userId": "...",
-    "canteenId": "...",
-    "items": [...],
-    "totalAmount": 120,
-    "status": "pending",
-    "paymentStatus": "pending",
-    "_id": "...",
-    "createdAt": "2025-12-11T..."
-  }
-}
-```
-
-### 14. Get My Orders
-**Endpoint:** `GET /api/v1/orders`
+### 12. Get My Orders
+**Endpoint:** `GET /orders`
+**Private**
 
 ```bash
-curl -X GET http://localhost:5001/api/v1/orders \
+curl -X GET http://localhost:5000/api/v1/orders \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
-**Optional query params:** `?status=paid` (filter by status)
-
-### 15. Get Order by ID
-**Endpoint:** `GET /api/v1/orders/:id`
+### 13. Get Order by ID
+**Endpoint:** `GET /orders/:id`
+**Private**
 
 ```bash
-curl -X GET http://localhost:5001/api/v1/orders/<ORDER_ID> \
+curl -X GET http://localhost:5000/api/v1/orders/ORD-MJ2H5XNB-NIJ69 \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
-### 16. Update Order Status (Admin/Owner)
-**Endpoint:** `PATCH /api/v1/orders/:id/status`
+### 14. Update Order Status (Admin/Owner)
+**Endpoint:** `PATCH /orders/:id/status`
+**Private**
 
 ```bash
-curl -X PATCH http://localhost:5001/api/v1/orders/<ORDER_ID>/status \
-  -H "Content-Type: application/json" \
+curl -X PATCH http://localhost:5000/api/v1/orders/OID/status \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"status": "preparing"}'
 ```
+*Statuses: preparing, ready, completed, cancelled*
 
-**Valid statuses:** `preparing`, `ready`, `completed`, `cancelled`
-
-### 17. Cancel Order
-**Endpoint:** `DELETE /api/v1/orders/:id`
-
-```bash
-curl -X DELETE http://localhost:5001/api/v1/orders/<ORDER_ID> \
-  -H "Authorization: Bearer <TOKEN>"
-```
-
-### 18. Get Canteen Orders (Admin/Owner)
-**Endpoint:** `GET /api/v1/orders/canteen/:canteenId`
+### 15. Verify Order QR (Admin/Owner)
+**Endpoint:** `POST /orders/verify-qr`
+**Private**
 
 ```bash
-curl -X GET http://localhost:5001/api/v1/orders/canteen/<CANTEEN_ID> \
-  -H "Authorization: Bearer <TOKEN>"
-```
-
-**Optional query params:** `?status=paid`
-
-### 19. Verify QR Code (Admin/Owner)
-**Endpoint:** `POST /api/v1/orders/verify-qr`
-
-```bash
-curl -X POST http://localhost:5001/api/v1/orders/verify-qr \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:5000/api/v1/orders/verify-qr \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"qrData": "<SCANNED_QR_DATA>"}'
+  -d '{"qrData": "..."}'
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "QR code verified successfully",
-  "data": {
-    "orderId": "ORD-ABC123-XYZ",
-    "status": "ready",
-    ...
-  }
-}
+### 16. Complete Pickup (Admin/Owner)
+**Endpoint:** `POST /orders/pickup`
+**Private**
+
+```bash
+curl -X POST http://localhost:5000/api/v1/orders/pickup \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{"qrData": "..."}'
 ```
 
 ---
 
-## Payments (NEW)
+## 💳 Payments
 
-### 20. Initiate Payment
-**Endpoint:** `POST /api/v1/payments/initiate`
+### 17. Initiate Payment
+**Endpoint:** `POST /payments/initiate`
+**Private**
 
 ```bash
-curl -X POST http://localhost:5001/api/v1/payments/initiate \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:5000/api/v1/payments/initiate \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"orderId": "<ORDER_MONGODB_ID>"}'
+  -d '{"orderId": "693bb36d34872b3c5b921fba"}'
 ```
 
 **Response:**
@@ -252,94 +277,46 @@ curl -X POST http://localhost:5001/api/v1/payments/initiate \
 {
   "success": true,
   "data": {
-    "paymentSessionId": "session_xxx",
-    "orderId": "ORD-ABC123-XYZ",
-    "amount": 120
+    "razorpayOrderId": "order_NeJ2H5XNBNIJ69",
+    "amount": 6000,
+    "currency": "INR"
   }
 }
 ```
 
-> **Frontend:** Use `paymentSessionId` to redirect to Cashfree hosted checkout
-
-### 21. Verify Payment
-**Endpoint:** `POST /api/v1/payments/verify`
+### 18. Verify Payment
+**Endpoint:** `POST /payments/verify`
+**Private**
 
 ```bash
-curl -X POST http://localhost:5001/api/v1/payments/verify \
-  -H "Content-Type: application/json" \
+curl -X POST http://localhost:5000/api/v1/payments/verify \
   -H "Authorization: Bearer <TOKEN>" \
-  -d '{"orderId": "ORD-ABC123-XYZ"}'
-```
-
-**Response (Success):**
-```json
-{
-  "success": true,
-  "message": "Payment verified successfully",
-  "data": {
-    "orderId": "ORD-ABC123-XYZ",
-    "status": "paid",
-    "paymentStatus": "success",
-    "qrCode": "data:image/png;base64,...",
-    ...
-  }
-}
-```
-
-### 22. Webhook (Cashfree)
-**Endpoint:** `POST /api/v1/payments/webhook`
-
-> **Note:** This endpoint is called automatically by Cashfree. No manual testing needed.
-
----
-
-## Order Flow Summary
-
-1. **User creates order** → Status: `pending`
-2. **User initiates payment** → Get `paymentSessionId`
-3. **Frontend redirects to Cashfree** → User completes payment
-4. **Cashfree webhook updates order** → Status: `paid`, QR code generated
-5. **User verifies payment** → Gets order with QR code
-6. **Admin updates status** → `preparing` → `ready`
-7. **User shows QR at counter** → Admin scans
-8. **Admin verifies QR** → Marks order as `completed`
-
----
-
-## Environment Variables Required
-
-Add to `.env`:
-```env
-# Cashfree Payment Gateway
-CASHFREE_APP_ID=your_cashfree_app_id
-CASHFREE_SECRET_KEY=your_cashfree_secret_key
-CASHFREE_ENV=TEST
-CASHFREE_WEBHOOK_SECRET=your_webhook_secret
-
-# URLs
-FRONTEND_URL=http://localhost:3000
-BACKEND_URL=http://localhost:5001
+  -d '{
+    "razorpayOrderId": "order_NeJ2H5XNBNIJ69",
+    "razorpayPaymentId": "pay_NeJ3CkS8sJ7",
+    "razorpaySignature": "e3b2c1..."
+  }'
 ```
 
 ---
 
-## Security Features
+## 📊 Analytics
 
-✅ **JWT Authentication** - All endpoints protected except auth and webhook  
-✅ **HMAC QR Signatures** - QR codes signed with JWT secret  
-✅ **Role-based Access** - Admin/owner checks for sensitive operations  
-✅ **Payment Verification** - Cashfree signature validation  
-✅ **Order Ownership** - Users can only access their own orders  
-✅ **Quantity Validation** - Stock checks before order creation  
+### 19. Get Canteen Analytics
+**Endpoint:** `GET /analytics/canteen/:canteenId`
+**Private (Admin/Owner)**
 
----
+```bash
+curl -X GET "http://localhost:5000/api/v1/analytics/canteen/CID?period=day" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+*Periods: day, week, month*
 
-## Testing Checklist
+### 20. Get Earnings Breakdown
+**Endpoint:** `GET /analytics/canteen/:canteenId/earnings`
+**Private (Admin/Owner)**
 
-- [ ] Create order with valid items
-- [ ] Initiate payment and get session ID
-- [ ] Complete payment on Cashfree (TEST mode)
-- [ ] Verify payment and receive QR code
-- [ ] Admin updates order status
-- [ ] Scan QR code to verify order
-- [ ] Test error cases (insufficient quantity, invalid items, etc.)
+```bash
+curl -X GET "http://localhost:5000/api/v1/analytics/canteen/CID/earnings?period=week" \
+  -H "Authorization: Bearer <TOKEN>"
+```

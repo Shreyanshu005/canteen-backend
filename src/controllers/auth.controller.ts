@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 
+
 import sendEmail from '../utils/sendEmail';
 import { getOTPEmailTemplate } from '../utils/emailTemplates';
 
@@ -123,6 +124,36 @@ export const verifyOtp = async (req: Request, res: Response) => {
             success: true,
             token,
             role: user.role,
+        });
+    } catch (err: any) {
+        console.error(err);
+        res.status(500).json({ success: false, error: 'Server Error' });
+    }
+};
+// @desc    Delete user account
+// @route   DELETE /api/v1/auth/me
+// @access  Private
+export const deleteAccount = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?._id;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, error: 'Not authorized' });
+        }
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        // Safe to delete
+        await user.deleteOne();
+
+        res.status(200).json({
+            success: true,
+            data: {},
+            message: 'Account deleted successfully'
         });
     } catch (err: any) {
         console.error(err);
