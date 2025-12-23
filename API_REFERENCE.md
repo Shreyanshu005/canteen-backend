@@ -1,6 +1,6 @@
 # Canteen Backend API Reference
 
-Base URL: `http://localhost:5000/api/v1`
+Base URL: `https://api.dranjali.tech/api/v1`
 
 ---
 
@@ -11,7 +11,7 @@ Base URL: `http://localhost:5000/api/v1`
 **Public**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/auth/email/send-otp \
+curl -X POST https://api.dranjali.tech/api/v1/auth/email/send-otp \
   -H "Content-Type: application/json" \
   -d '{"email": "test@example.com"}'
 ```
@@ -29,7 +29,7 @@ curl -X POST http://localhost:5000/api/v1/auth/email/send-otp \
 **Public**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/auth/email/verify-otp \
+curl -X POST https://api.dranjali.tech/api/v1/auth/email/verify-otp \
   -H "Content-Type: application/json" \
   -d '{"email": "test@example.com", "otp": "123456"}'
 ```
@@ -44,22 +44,7 @@ curl -X POST http://localhost:5000/api/v1/auth/email/verify-otp \
 ```
 *Use this token in the `Authorization` header for all protected routes: `Bearer <TOKEN>`*
 
-### 3. Delete Account
-**Endpoint:** `DELETE /auth/me`
-**Private**
-
-```bash
-curl -X DELETE http://localhost:5000/api/v1/auth/me \
-  -H "Authorization: Bearer <TOKEN>"
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Account deleted successfully"
-}
-```
+faile
 
 ---
 
@@ -70,7 +55,7 @@ curl -X DELETE http://localhost:5000/api/v1/auth/me \
 **Public**
 
 ```bash
-curl -X GET http://localhost:5000/api/v1/canteens
+curl -X GET https://api.dranjali.tech/api/v1/canteens
 ```
 
 **Response:**
@@ -96,7 +81,7 @@ curl -X GET http://localhost:5000/api/v1/canteens
 **Private**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/canteens \
+curl -X POST https://api.dranjali.tech/api/v1/canteens \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -113,7 +98,7 @@ curl -X POST http://localhost:5000/api/v1/canteens \
 **Private**
 
 ```bash
-curl -X GET http://localhost:5000/api/v1/canteens/my-canteens \
+curl -X GET https://api.dranjali.tech/api/v1/canteens/my-canteens \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
@@ -122,7 +107,7 @@ curl -X GET http://localhost:5000/api/v1/canteens/my-canteens \
 **Private**
 
 ```bash
-curl -X PATCH http://localhost:5000/api/v1/canteens/693b010b3ab6f068202b736b/status \
+curl -X PATCH https://api.dranjali.tech/api/v1/canteens/693b010b3ab6f068202b736b/status \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
@@ -135,7 +120,7 @@ curl -X PATCH http://localhost:5000/api/v1/canteens/693b010b3ab6f068202b736b/sta
 **Public**
 
 ```bash
-curl -X GET http://localhost:5000/api/v1/menu/canteen/693b010b3ab6f068202b736b
+curl -X GET https://api.dranjali.tech/api/v1/menu/canteen/693b010b3ab6f068202b736b
 ```
 
 **Response:**
@@ -159,7 +144,7 @@ curl -X GET http://localhost:5000/api/v1/menu/canteen/693b010b3ab6f068202b736b
 **Private (Owner/Admin)**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/menu/canteen/693b010b3ab6f068202b736b \
+curl -X POST https://api.dranjali.tech/api/v1/menu/canteen/693b010b3ab6f068202b736b \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -174,7 +159,7 @@ curl -X POST http://localhost:5000/api/v1/menu/canteen/693b010b3ab6f068202b736b 
 **Private**
 
 ```bash
-curl -X PUT http://localhost:5000/api/v1/menu/canteen/CID/item/IID \
+curl -X PUT https://api.dranjali.tech/api/v1/menu/canteen/CID/item/IID \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"price": 60}'
 ```
@@ -184,7 +169,7 @@ curl -X PUT http://localhost:5000/api/v1/menu/canteen/CID/item/IID \
 **Private**
 
 ```bash
-curl -X PATCH http://localhost:5000/api/v1/menu/canteen/CID/item/IID/quantity \
+curl -X PATCH https://api.dranjali.tech/api/v1/menu/canteen/CID/item/IID/quantity \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"quantity": 0}'
 ```
@@ -198,7 +183,7 @@ curl -X PATCH http://localhost:5000/api/v1/menu/canteen/CID/item/IID/quantity \
 **Private**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/orders \
+curl -X POST https://api.dranjali.tech/api/v1/orders \
   -H "Authorization: Bearer <TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -214,7 +199,7 @@ curl -X POST http://localhost:5000/api/v1/orders \
 **Private**
 
 ```bash
-curl -X GET http://localhost:5000/api/v1/orders \
+curl -X GET https://api.dranjali.tech/api/v1/orders \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
@@ -223,7 +208,7 @@ curl -X GET http://localhost:5000/api/v1/orders \
 **Private**
 
 ```bash
-curl -X GET http://localhost:5000/api/v1/orders/ORD-MJ2H5XNB-NIJ69 \
+curl -X GET https://api.dranjali.tech/api/v1/orders/ORD-MJ2H5XNB-NIJ69 \
   -H "Authorization: Bearer <TOKEN>"
 ```
 
@@ -232,7 +217,7 @@ curl -X GET http://localhost:5000/api/v1/orders/ORD-MJ2H5XNB-NIJ69 \
 **Private**
 
 ```bash
-curl -X PATCH http://localhost:5000/api/v1/orders/OID/status \
+curl -X PATCH https://api.dranjali.tech/api/v1/orders/OID/status \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"status": "preparing"}'
 ```
@@ -243,7 +228,7 @@ curl -X PATCH http://localhost:5000/api/v1/orders/OID/status \
 **Private**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/orders/verify-qr \
+curl -X POST https://api.dranjali.tech/api/v1/orders/verify-qr \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"qrData": "..."}'
 ```
@@ -253,7 +238,7 @@ curl -X POST http://localhost:5000/api/v1/orders/verify-qr \
 **Private**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/orders/pickup \
+curl -X POST https://api.dranjali.tech/api/v1/orders/pickup \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"qrData": "..."}'
 ```
@@ -267,7 +252,7 @@ curl -X POST http://localhost:5000/api/v1/orders/pickup \
 **Private**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/payments/initiate \
+curl -X POST https://api.dranjali.tech/api/v1/payments/initiate \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{"orderId": "693bb36d34872b3c5b921fba"}'
 ```
@@ -289,7 +274,7 @@ curl -X POST http://localhost:5000/api/v1/payments/initiate \
 **Private**
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/payments/verify \
+curl -X POST https://api.dranjali.tech/api/v1/payments/verify \
   -H "Authorization: Bearer <TOKEN>" \
   -d '{
     "razorpayOrderId": "order_NeJ2H5XNBNIJ69",
@@ -307,7 +292,7 @@ curl -X POST http://localhost:5000/api/v1/payments/verify \
 **Private (Admin/Owner)**
 
 ```bash
-curl -X GET "http://localhost:5000/api/v1/analytics/canteen/CID?period=day" \
+curl -X GET "https://api.dranjali.tech/api/v1/analytics/canteen/CID?period=day" \
   -H "Authorization: Bearer <TOKEN>"
 ```
 *Periods: day, week, month*
@@ -317,6 +302,6 @@ curl -X GET "http://localhost:5000/api/v1/analytics/canteen/CID?period=day" \
 **Private (Admin/Owner)**
 
 ```bash
-curl -X GET "http://localhost:5000/api/v1/analytics/canteen/CID/earnings?period=week" \
+curl -X GET "https://api.dranjali.tech/api/v1/analytics/canteen/CID/earnings?period=week" \
   -H "Authorization: Bearer <TOKEN>"
 ```
