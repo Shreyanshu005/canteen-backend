@@ -27,6 +27,9 @@ export const getOTPEmailTemplate = (otp: string): string => {
                     We received a request to verify your account. Please use the verification code below to complete the process.
                 </p>
                 
+                <!-- For iOS/Android OTP autofill detection -->
+                <div style="display: none;">Your verification code is: ${otp}</div>
+                
                 <!-- OTP Box -->
                 <div style="background: #f7fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 32px 24px; text-align: center; margin: 32px 0;">
                     <p style="margin: 0 0 12px; color: #718096; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px;">Verification Code</p>
