@@ -364,7 +364,7 @@ export const verifyOrderQR = async (req: Request, res: Response) => {
 
         // Find order by orderId (not _id)
         const order = await Order.findOne({ orderId })
-            .populate('canteenId', 'name place')
+            .populate('canteenId', 'name place ownerId')
             .populate('userId', 'email');
 
         if (!order) {
@@ -372,9 +372,9 @@ export const verifyOrderQR = async (req: Request, res: Response) => {
         }
 
         // Check authorization
-        const canteen = await Canteen.findById(order.canteenId);
+        const canteen = order.canteenId as any;
         const isAdmin = req.user?.role === 'admin';
-        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+        const isCanteenOwner = canteen?.ownerId?.toString() === req.user?._id.toString();
 
         if (!isAdmin && !isCanteenOwner) {
             return res.status(403).json({
@@ -413,17 +413,18 @@ export const completeOrderPickup = async (req: Request, res: Response) => {
 
         const { orderId } = verified;
 
-        // Find order
-        const order = await Order.findOne({ orderId });
+        // Find order and populate canteen with ownerId
+        const order = await Order.findOne({ orderId })
+            .populate('canteenId', 'name place ownerId');
 
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
 
         // Check authorization
-        const canteen = await Canteen.findById(order.canteenId);
+        const canteen = order.canteenId as any;
         const isAdmin = req.user?.role === 'admin';
-        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+        const isCanteenOwner = canteen?.ownerId?.toString() === req.user?._id.toString();
 
         if (!isAdmin && !isCanteenOwner) {
             return res.status(403).json({

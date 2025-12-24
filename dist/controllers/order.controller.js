@@ -326,15 +326,15 @@ const verifyOrderQR = async (req, res) => {
         const { orderId } = verified;
         // Find order by orderId (not _id)
         const order = await Order_1.default.findOne({ orderId })
-            .populate('canteenId', 'name place')
+            .populate('canteenId', 'name place ownerId')
             .populate('userId', 'email');
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
         // Check authorization
-        const canteen = await Canteen_1.default.findById(order.canteenId);
+        const canteen = order.canteenId;
         const isAdmin = req.user?.role === 'admin';
-        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+        const isCanteenOwner = canteen?.ownerId?.toString() === req.user?._id.toString();
         if (!isAdmin && !isCanteenOwner) {
             return res.status(403).json({
                 success: false,
@@ -368,15 +368,16 @@ const completeOrderPickup = async (req, res) => {
             return res.status(400).json({ success: false, error: 'Invalid or expired QR code' });
         }
         const { orderId } = verified;
-        // Find order
-        const order = await Order_1.default.findOne({ orderId });
+        // Find order and populate canteen with ownerId
+        const order = await Order_1.default.findOne({ orderId })
+            .populate('canteenId', 'name place ownerId');
         if (!order) {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
         // Check authorization
-        const canteen = await Canteen_1.default.findById(order.canteenId);
+        const canteen = order.canteenId;
         const isAdmin = req.user?.role === 'admin';
-        const isCanteenOwner = canteen?.ownerId.toString() === req.user?._id.toString();
+        const isCanteenOwner = canteen?.ownerId?.toString() === req.user?._id.toString();
         if (!isAdmin && !isCanteenOwner) {
             return res.status(403).json({
                 success: false,
