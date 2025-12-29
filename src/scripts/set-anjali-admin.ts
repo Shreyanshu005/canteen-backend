@@ -8,7 +8,7 @@ dotenv.config();
 const updateRole = async () => {
     try {
         await connectDB();
-        const email = 'anjaligupta25092005@gmail.com';
+        const email = 'rishabh.snghl0123@gmail.com';
         let user = await User.findOne({ email });
 
         if (user) {

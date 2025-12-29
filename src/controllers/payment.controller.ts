@@ -4,7 +4,7 @@ import Payment from '../models/Payment';
 import User from '../models/User';
 import MenuItem from '../models/MenuItem';
 import { createRazorpayOrder, verifyPaymentSignature, getPaymentDetails, verifyWebhookSignature } from '../utils/razorpay';
-import { generateOrderQR } from '../utils/qrGenerator';
+import { fulfillOrder } from '../services/orderFulfillment.service';
 
 // @desc    Initiate payment for an order
 // @route   POST /api/v1/payments/initiate
@@ -144,48 +144,18 @@ export const verifyPayment = async (req: Request, res: Response) => {
         // Get payment details from Razorpay
         const paymentDetails = await getPaymentDetails(razorpayPaymentId);
 
-        // Update payment record
-        payment.razorpayPaymentId = razorpayPaymentId;
-        payment.status = paymentDetails.status === 'captured' ? 'success' : 'failed';
-        payment.paymentMethod = paymentDetails.method;
-        await payment.save();
+        // Fulfill the order using the shared service
+        const updatedOrder = await fulfillOrder(
+            razorpayOrderId,
+            razorpayPaymentId,
+            paymentDetails.method
+        );
 
-        // Update order
-        if (paymentDetails.status === 'captured') {
-            order.paymentStatus = 'success';
-            order.status = 'paid';
-            order.paymentId = razorpayPaymentId;
-
-            // Deduct quantities from menu items
-            for (const item of order.items) {
-                const menuItem = await MenuItem.findById(item.menuItemId);
-                if (menuItem) {
-                    menuItem.availableQuantity -= item.quantity;
-                    await menuItem.save();
-                }
-            }
-
-            // Generate QR code
-            const qrCode = await generateOrderQR(order.orderId);
-            order.qrCode = qrCode;
-
-            await order.save();
-
-            return res.status(200).json({
-                success: true,
-                message: 'Payment verified successfully',
-                data: order,
-            });
-        } else {
-            order.paymentStatus = 'failed';
-            await order.save();
-
-            return res.status(400).json({
-                success: false,
-                error: 'Payment not captured',
-                data: order,
-            });
-        }
+        return res.status(200).json({
+            success: true,
+            message: 'Payment verified successfully',
+            data: updatedOrder,
+        });
     } catch (err: any) {
         console.error(err);
         res.status(500).json({ success: false, error: err.message || 'Server Error' });
@@ -195,9 +165,10 @@ export const verifyPayment = async (req: Request, res: Response) => {
 // @desc    Handle Razorpay webhook
 // @route   POST /api/v1/payments/webhook
 // @access  Public (but verified)
-export const handleWebhook = async (req: Request, res: Response) => {
+export const handleWebhook = async (req: any, res: Response) => {
     try {
-        const webhookBody = JSON.stringify(req.body);
+        console.log('🚀 Webhook hit! Method:', req.method, 'Headers:', JSON.stringify(req.headers['x-razorpay-signature']));
+        const webhookBody = (req as any).rawBody || JSON.stringify(req.body);
         const webhookSignature = req.headers['x-razorpay-signature'] as string;
 
         console.log('Webhook received:', JSON.stringify(req.body, null, 2));
@@ -210,63 +181,55 @@ export const handleWebhook = async (req: Request, res: Response) => {
         }
 
         const event = req.body.event;
-        const paymentEntity = req.body.payload?.payment?.entity;
+        console.log(`🔔 Processing event: ${event}`);
 
-        if (!paymentEntity) {
-            return res.status(400).json({ success: false, error: 'Invalid webhook data' });
-        }
+        // Handle payment.captured OR order.paid
+        if (event === 'payment.captured' || event === 'order.paid') {
+            let razorpayOrderId: string;
+            let razorpayPaymentId: string = 'N/A';
+            let paymentMethod: string = 'unknown';
 
-        // Handle payment.captured event
-        if (event === 'payment.captured') {
-            const razorpayPaymentId = paymentEntity.id;
-            const razorpayOrderId = paymentEntity.order_id;
-
-            // Find payment by Razorpay order ID
-            const payment = await Payment.findOne({ razorpayOrderId });
-
-            if (!payment) {
-                console.error(`Payment not found for webhook: ${razorpayOrderId}`);
-                return res.status(404).json({ success: false, error: 'Payment not found' });
+            if (event === 'payment.captured') {
+                const paymentEntity = req.body.payload?.payment?.entity;
+                if (!paymentEntity) return res.status(400).json({ success: false, error: 'Invalid payload' });
+                razorpayPaymentId = paymentEntity.id;
+                razorpayOrderId = paymentEntity.order_id;
+                paymentMethod = paymentEntity.method;
+            } else {
+                // order.paid
+                const orderEntity = req.body.payload?.order?.entity;
+                if (!orderEntity) return res.status(400).json({ success: false, error: 'Invalid payload' });
+                razorpayOrderId = orderEntity.id;
+                // For order.paid, we don't always get the payment ID directly in the entity, 
+                // but fulfillOrder handles the core logic.
             }
 
-            // Update payment status
-            payment.razorpayPaymentId = razorpayPaymentId;
-            payment.status = 'success';
-            payment.paymentMethod = paymentEntity.method;
-            await payment.save();
+            console.log(`Processing fulfillment for Razorpay Order: ${razorpayOrderId}`);
 
-            // Update order
-            const order = await Order.findById(payment.orderId);
-            if (order) {
-                order.paymentStatus = 'success';
-                order.status = 'paid';
-                order.paymentId = razorpayPaymentId;
-
-                // Generate QR code if not already generated
-                if (!order.qrCode) {
-                    const qrCode = await generateOrderQR(order.orderId);
-                    order.qrCode = qrCode;
-                }
-
-                await order.save();
-                console.log(`Order ${order.orderId} marked as paid`);
-            }
+            // Fulfill order via shared service
+            await fulfillOrder(
+                razorpayOrderId,
+                razorpayPaymentId,
+                paymentMethod
+            );
         }
 
         // Handle payment.failed event
         if (event === 'payment.failed') {
-            const razorpayOrderId = paymentEntity.order_id;
+            const failedRazorpayOrderId = req.body.payload?.payment?.entity?.order_id;
 
-            const payment = await Payment.findOne({ razorpayOrderId });
-            if (payment) {
-                payment.status = 'failed';
-                await payment.save();
+            if (failedRazorpayOrderId) {
+                const payment = await Payment.findOne({ razorpayOrderId: failedRazorpayOrderId });
+                if (payment) {
+                    payment.status = 'failed';
+                    await payment.save();
 
-                const order = await Order.findById(payment.orderId);
-                if (order) {
-                    order.paymentStatus = 'failed';
-                    await order.save();
-                    console.log(`Order ${order.orderId} payment failed`);
+                    const order = await Order.findById(payment.orderId);
+                    if (order) {
+                        order.paymentStatus = 'failed';
+                        await order.save();
+                        console.log(`Order ${order.orderId} payment failed`);
+                    }
                 }
             }
         }

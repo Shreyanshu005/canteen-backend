@@ -13,7 +13,11 @@ connectDB();
 const app: Application = express();
 
 // Middleware
-app.use(express.json());
+app.use(express.json({
+    verify: (req: any, res, buf) => {
+        req.rawBody = buf.toString();
+    }
+}));
 app.use(express.urlencoded({ extended: true })); // For x-www-form-urlencoded
 app.use(cors());
 
@@ -23,10 +27,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     next();
 });
 
+import { handleWebhook } from './controllers/payment.controller';
+
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
     res.send('Canteen Backend API is running');
 });
+
+// Safety Fallback: Razorpay often hits the root / instead of the specific path
+app.post('/', handleWebhook);
 
 // Routes
 import authRoutes from './routes/auth.routes';

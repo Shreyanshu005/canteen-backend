@@ -13,7 +13,11 @@ dotenv_1.default.config();
 (0, db_1.default)();
 const app = (0, express_1.default)();
 // Middleware
-app.use(express_1.default.json());
+app.use(express_1.default.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString();
+    }
+}));
 app.use(express_1.default.urlencoded({ extended: true })); // For x-www-form-urlencoded
 app.use((0, cors_1.default)());
 // Request Logger
@@ -21,10 +25,13 @@ app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
 });
+const payment_controller_1 = require("./controllers/payment.controller");
 // Basic route for testing
 app.get('/', (req, res) => {
     res.send('Canteen Backend API is running');
 });
+// Safety Fallback: Razorpay often hits the root / instead of the specific path
+app.post('/', payment_controller_1.handleWebhook);
 // Routes
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const canteen_routes_1 = __importDefault(require("./routes/canteen.routes"));

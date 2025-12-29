@@ -11,7 +11,7 @@ dotenv_1.default.config();
 const updateRole = async () => {
     try {
         await (0, db_1.default)();
-        const email = 'anjaligupta25092005@gmail.com';
+        const email = 'rishabh.snghl0123@gmail.com';
         let user = await User_1.default.findOne({ email });
         if (user) {
             user.role = 'admin';

@@ -33,12 +33,9 @@ const createOrder = async (req, res) => {
         // Check operating hours (Automatic)
         if (canteen.openingTime && canteen.closingTime) {
             const now = new Date();
-            // Convert current time to minutes since midnight (IST handling might be needed if server is UTC)
-            // Assuming server time aligns with canteen hours or using local time
-            // For robust handling, better to use UTC or specific timezone library, 
-            // but for now relying on server local time matching user expectations or standardizing.
-            const currentHours = now.getHours();
-            const currentMinutes = now.getMinutes();
+            const istTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+            const currentHours = istTime.getHours();
+            const currentMinutes = istTime.getMinutes();
             const currentTimeValue = currentHours * 60 + currentMinutes;
             const [openH = 0, openM = 0] = canteen.openingTime.split(':').map(Number);
             const openTimeValue = openH * 60 + openM;
