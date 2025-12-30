@@ -8,6 +8,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 const sendEmail_1 = __importDefault(require("../utils/sendEmail"));
 const emailTemplates_1 = require("../utils/emailTemplates");
+const redis_1 = require("../config/redis");
 // @desc    Send OTP to email
 // @route   POST /api/v1/auth/email/send-otp
 // @access  Public
@@ -27,19 +28,15 @@ const sendOtp = async (req, res) => {
         }
         // Generate random 6 digit OTP
         let otp = Math.floor(100000 + Math.random() * 900000).toString();
-        let otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        let expirySeconds = 600; // 10 minutes
         // SPECIAL HANDLING: Demo User for App Store Review
-        // Allows login without accessing email
         if (email.toLowerCase() === 'demo@canteen.com') {
-            console.log('🔹 Demo User Login Detected');
             otp = '123456';
-            otpExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+            expirySeconds = 24 * 60 * 60; // 24 hours
         }
-        // Save crypto to database
-        console.log('Saving user to DB...');
-        user.otp = otp;
-        user.otpExpires = otpExpires;
-        await user.save();
+        // Save OTP to Redis
+        console.log(`Saving verification code to Redis for ${email}...`);
+        await (0, redis_1.setOTP)(email, otp, expirySeconds);
         if (email.toLowerCase() === 'demo@canteen.com') {
             console.log(`✅ Demo OTP set to 123456 for ${email}`);
             return res.status(200).json({
@@ -67,9 +64,7 @@ const sendOtp = async (req, res) => {
         }
         catch (err) {
             console.error(err);
-            user.otp = undefined;
-            user.otpExpires = undefined;
-            await user.save();
+            await (0, redis_1.deleteOTP)(email);
             return res.status(500).json({ success: false, error: 'Email could not be sent' });
         }
     }
@@ -88,19 +83,15 @@ const verifyOtp = async (req, res) => {
         if (!email || !otp) {
             return res.status(400).json({ success: false, error: 'Please provide email and otp' });
         }
-        // Find user with matching email and otp, and check expiration
-        const user = await User_1.default.findOne({
-            email,
-            otp,
-            otpExpires: { $gt: Date.now() },
-        });
-        if (!user) {
+        // Find user
+        const user = await User_1.default.findOne({ email });
+        // Get OTP from Redis
+        const storedOtp = await (0, redis_1.getOTP)(email);
+        if (!user || !storedOtp || storedOtp !== otp) {
             return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
         }
-        // Clear OTP
-        user.otp = undefined;
-        user.otpExpires = undefined;
-        await user.save();
+        // Clear OTP from Redis
+        await (0, redis_1.deleteOTP)(email);
         // Create token
         const token = jsonwebtoken_1.default.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: (process.env.JWT_EXPIRE || '30d') });
         res.status(200).json({

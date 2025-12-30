@@ -5,6 +5,7 @@ import User from '../models/User';
 
 import sendEmail from '../utils/sendEmail';
 import { getOTPEmailTemplate } from '../utils/emailTemplates';
+import { setOTP, getOTP, deleteOTP } from '../config/redis';
 
 // @desc    Send OTP to email
 // @route   POST /api/v1/auth/email/send-otp
@@ -29,21 +30,17 @@ export const sendOtp = async (req: Request, res: Response) => {
 
         // Generate random 6 digit OTP
         let otp = Math.floor(100000 + Math.random() * 900000).toString();
-        let otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        let expirySeconds = 600; // 10 minutes
 
         // SPECIAL HANDLING: Demo User for App Store Review
-        // Allows login without accessing email
         if (email.toLowerCase() === 'demo@canteen.com') {
-            console.log('🔹 Demo User Login Detected');
             otp = '123456';
-            otpExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+            expirySeconds = 24 * 60 * 60; // 24 hours
         }
 
-        // Save crypto to database
-        console.log('Saving user to DB...');
-        user.otp = otp;
-        user.otpExpires = otpExpires;
-        await user.save();
+        // Save OTP to Redis
+        console.log(`Saving verification code to Redis for ${email}...`);
+        await setOTP(email, otp, expirySeconds);
 
         if (email.toLowerCase() === 'demo@canteen.com') {
             console.log(`✅ Demo OTP set to 123456 for ${email}`);
@@ -75,9 +72,7 @@ export const sendOtp = async (req: Request, res: Response) => {
             });
         } catch (err: any) {
             console.error(err);
-            user.otp = undefined;
-            user.otpExpires = undefined;
-            await user.save();
+            await deleteOTP(email);
             return res.status(500).json({ success: false, error: 'Email could not be sent' });
         }
     } catch (err: any) {
@@ -97,21 +92,18 @@ export const verifyOtp = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, error: 'Please provide email and otp' });
         }
 
-        // Find user with matching email and otp, and check expiration
-        const user = await User.findOne({
-            email,
-            otp,
-            otpExpires: { $gt: Date.now() },
-        });
+        // Find user
+        const user = await User.findOne({ email });
 
-        if (!user) {
+        // Get OTP from Redis
+        const storedOtp = await getOTP(email);
+
+        if (!user || !storedOtp || storedOtp !== otp) {
             return res.status(400).json({ success: false, error: 'Invalid or expired OTP' });
         }
 
-        // Clear OTP
-        user.otp = undefined;
-        user.otpExpires = undefined;
-        await user.save();
+        // Clear OTP from Redis
+        await deleteOTP(email);
 
         // Create token
         const token = jwt.sign(

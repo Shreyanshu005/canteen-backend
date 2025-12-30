@@ -49,14 +49,6 @@ const UserSchema = new mongoose_1.Schema({
         enum: ['admin', 'user', 'canteen_owner'],
         default: 'user',
     },
-    otp: {
-        type: String,
-        select: false, // Don't return OTP in queries by default
-    },
-    otpExpires: {
-        type: Date,
-        select: false,
-    },
     createdAt: {
         type: Date,
         default: Date.now,

@@ -2,8 +2,6 @@ import mongoose, { Document } from 'mongoose';
 export interface IUser extends Document {
     email: string;
     role: 'admin' | 'user' | 'canteen_owner';
-    otp?: string;
-    otpExpires?: Date;
     createdAt: Date;
 }
 declare const _default: mongoose.Model<IUser, {}, {}, {}, mongoose.Document<unknown, {}, IUser, {}, mongoose.DefaultSchemaOptions> & IUser & Required<{
