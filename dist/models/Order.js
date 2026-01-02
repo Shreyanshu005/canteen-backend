@@ -89,7 +89,7 @@ const OrderSchema = new mongoose_1.Schema({
     },
     paymentStatus: {
         type: String,
-        enum: ['pending', 'success', 'failed'],
+        enum: ['pending', 'success', 'failed', 'refunded'],
         default: 'pending',
     },
     paymentId: {
@@ -113,6 +113,6 @@ OrderSchema.pre('save', function () {
 OrderSchema.index({ canteenId: 1, status: 1, createdAt: -1 }); // Canteen Dashboard
 OrderSchema.index({ userId: 1, createdAt: -1 }); // User History
 OrderSchema.index({ status: 1, createdAt: 1 }); // Background Cleanup Jobs
-OrderSchema.index({ orderId: 1 }); // Order Lookup
+// Note: orderId index is already created via unique: true in schema definition
 exports.default = mongoose_1.default.model('Order', OrderSchema);
 //# sourceMappingURL=Order.js.map

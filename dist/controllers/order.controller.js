@@ -7,6 +7,7 @@ exports.completeOrderPickup = exports.verifyOrderQR = exports.getCanteenOrders =
 const Order_1 = __importDefault(require("../models/Order"));
 const MenuItem_1 = __importDefault(require("../models/MenuItem"));
 const Canteen_1 = __importDefault(require("../models/Canteen"));
+const redis_1 = __importDefault(require("../config/redis"));
 const qrGenerator_1 = require("../utils/qrGenerator");
 // @desc    Create new order
 // @route   POST /api/v1/orders
@@ -101,6 +102,13 @@ const createOrder = async (req, res) => {
             status: 'pending',
             paymentStatus: 'pending',
         });
+        // INVALIDATE MENU CACHE (Inventory Changed)
+        try {
+            await redis_1.default.del(`menu:${canteenId}`);
+        }
+        catch (e) {
+            console.error('Failed to invalidate menu cache', e);
+        }
         res.status(201).json({
             success: true,
             data: order,
@@ -275,6 +283,13 @@ const cancelOrder = async (req, res) => {
             await MenuItem_1.default.findByIdAndUpdate(item.menuItemId, {
                 $inc: { availableQuantity: item.quantity }
             });
+        }
+        // INVALIDATE MENU CACHE
+        try {
+            await redis_1.default.del(`menu:${order.canteenId}`);
+        }
+        catch (e) {
+            console.error('Failed to invalidate menu cache', e);
         }
         res.status(200).json({
             success: true,

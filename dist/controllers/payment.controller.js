@@ -128,6 +128,15 @@ const verifyPayment = async (req, res) => {
         const paymentDetails = await (0, razorpay_1.getPaymentDetails)(razorpayPaymentId);
         // Fulfill the order using the shared service
         const updatedOrder = await (0, orderFulfillment_service_1.fulfillOrder)(razorpayOrderId, razorpayPaymentId, paymentDetails.method);
+        // If null, payment was already processed - fetch the existing order
+        if (!updatedOrder) {
+            const existingOrder = await Order_1.default.findById(payment.orderId);
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already verified',
+                data: existingOrder,
+            });
+        }
         return res.status(200).json({
             success: true,
             message: 'Payment verified successfully',

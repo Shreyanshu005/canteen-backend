@@ -151,6 +151,16 @@ export const verifyPayment = async (req: Request, res: Response) => {
             paymentDetails.method
         );
 
+        // If null, payment was already processed - fetch the existing order
+        if (!updatedOrder) {
+            const existingOrder = await Order.findById(payment.orderId);
+            return res.status(200).json({
+                success: true,
+                message: 'Payment already verified',
+                data: existingOrder,
+            });
+        }
+
         return res.status(200).json({
             success: true,
             message: 'Payment verified successfully',

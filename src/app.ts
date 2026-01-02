@@ -15,6 +15,9 @@ connectDB();
 
 const app: Application = express();
 
+// Trust proxy - required for ngrok, reverse proxies, and rate limiting
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(express.json({
     verify: (req: any, res, buf) => {

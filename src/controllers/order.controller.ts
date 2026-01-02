@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import Order from '../models/Order';
 import MenuItem from '../models/MenuItem';
 import Canteen from '../models/Canteen';
+import redis from '../config/redis';
 import { generateOrderQR, verifyOrderQR as verifyQRCode } from '../utils/qrGenerator';
 
 // @desc    Create new order
@@ -117,6 +118,13 @@ export const createOrder = async (req: Request, res: Response) => {
             status: 'pending',
             paymentStatus: 'pending',
         });
+
+        // INVALIDATE MENU CACHE (Inventory Changed)
+        try {
+            await redis.del(`menu:${canteenId}`);
+        } catch (e) {
+            console.error('Failed to invalidate menu cache', e);
+        }
 
         res.status(201).json({
             success: true,
@@ -310,6 +318,13 @@ export const cancelOrder = async (req: Request, res: Response) => {
             await MenuItem.findByIdAndUpdate(item.menuItemId, {
                 $inc: { availableQuantity: item.quantity }
             });
+        }
+
+        // INVALIDATE MENU CACHE
+        try {
+            await redis.del(`menu:${order.canteenId}`);
+        } catch (e) {
+            console.error('Failed to invalidate menu cache', e);
         }
 
         res.status(200).json({

@@ -15,6 +15,8 @@ dotenv_1.default.config();
 // Connect to database
 (0, db_1.default)();
 const app = (0, express_1.default)();
+// Trust proxy - required for ngrok, reverse proxies, and rate limiting
+app.set('trust proxy', 1);
 // Middleware
 app.use(express_1.default.json({
     verify: (req, res, buf) => {
