@@ -5,6 +5,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const helmet_1 = __importDefault(require("helmet"));
+const compression_1 = __importDefault(require("compression"));
+const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const db_1 = __importDefault(require("./config/db"));
 // Load env vars
@@ -20,6 +23,17 @@ app.use(express_1.default.json({
 }));
 app.use(express_1.default.urlencoded({ extended: true })); // For x-www-form-urlencoded
 app.use((0, cors_1.default)());
+app.use((0, helmet_1.default)()); // Security Headers
+app.use((0, compression_1.default)()); // Gzip Compression
+// Rate Limiting: 300 requests per 15 minutes
+const limiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+});
+app.use(limiter);
 // Request Logger
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);

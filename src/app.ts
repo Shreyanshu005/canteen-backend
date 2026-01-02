@@ -1,6 +1,9 @@
 import express from 'express';
 import type { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import connectDB from './config/db';
 
@@ -20,6 +23,18 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true })); // For x-www-form-urlencoded
 app.use(cors());
+app.use(helmet()); // Security Headers
+app.use(compression()); // Gzip Compression
+
+// Rate Limiting: 300 requests per 15 minutes
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many requests from this IP, please try again after 15 minutes',
+});
+app.use(limiter);
 
 // Request Logger
 app.use((req: Request, res: Response, next: NextFunction) => {

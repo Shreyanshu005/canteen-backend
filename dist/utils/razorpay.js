@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRazorpayOrderDetails = exports.getPaymentDetails = exports.verifyWebhookSignature = exports.verifyPaymentSignature = exports.createRazorpayOrder = void 0;
+exports.refundPayment = exports.getRazorpayOrderDetails = exports.getPaymentDetails = exports.verifyWebhookSignature = exports.verifyPaymentSignature = exports.createRazorpayOrder = void 0;
 const razorpay_1 = __importDefault(require("razorpay"));
 const crypto_1 = __importDefault(require("crypto"));
 /**
@@ -116,11 +116,31 @@ const getRazorpayOrderDetails = async (razorpayOrderId) => {
     }
 };
 exports.getRazorpayOrderDetails = getRazorpayOrderDetails;
+/**
+ * Refund a payment
+ */
+const refundPayment = async (paymentId, amount) => {
+    try {
+        const razorpay = getRazorpayInstance();
+        // Amount must be in paise
+        const refund = await razorpay.payments.refund(paymentId, {
+            amount: amount * 100,
+            speed: 'normal',
+        });
+        return refund;
+    }
+    catch (error) {
+        console.error('Razorpay refund error:', error);
+        throw new Error('Failed to refund payment');
+    }
+};
+exports.refundPayment = refundPayment;
 exports.default = {
     createRazorpayOrder: exports.createRazorpayOrder,
     verifyPaymentSignature: exports.verifyPaymentSignature,
     verifyWebhookSignature: exports.verifyWebhookSignature,
     getPaymentDetails: exports.getPaymentDetails,
     getRazorpayOrderDetails: exports.getRazorpayOrderDetails,
+    refundPayment: exports.refundPayment,
 };
 //# sourceMappingURL=razorpay.js.map

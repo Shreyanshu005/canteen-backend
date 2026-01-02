@@ -102,4 +102,10 @@ OrderSchema.pre('save', function () {
     }
 });
 
+// Compound indexes for optimized querying
+OrderSchema.index({ canteenId: 1, status: 1, createdAt: -1 }); // Canteen Dashboard
+OrderSchema.index({ userId: 1, createdAt: -1 });               // User History
+OrderSchema.index({ status: 1, createdAt: 1 });                // Background Cleanup Jobs
+OrderSchema.index({ orderId: 1 });                             // Order Lookup
+
 export default mongoose.model<IOrder>('Order', OrderSchema);

@@ -62,5 +62,9 @@ const PaymentSchema = new mongoose_1.Schema({
 }, {
     timestamps: true,
 });
+// Indices for faster lookup
+PaymentSchema.index({ orderId: 1 });
+PaymentSchema.index({ razorpayOrderId: 1 });
+PaymentSchema.index({ razorpayPaymentId: 1 });
 exports.default = mongoose_1.default.model('Payment', PaymentSchema);
 //# sourceMappingURL=Payment.js.map

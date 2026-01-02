@@ -53,15 +53,12 @@ export const fulfillOrder = async (razorpayOrderId: string, razorpayPaymentId: s
     order.status = 'paid';
     order.paymentId = razorpayPaymentId;
 
-    // 5. Deduct inventory quantities
-    console.log(`Deducting inventory for order ${order.orderId}...`);
-    for (const item of order.items) {
-        const menuItem = await MenuItem.findById(item.menuItemId);
-        if (menuItem) {
-            menuItem.availableQuantity -= item.quantity;
-            await menuItem.save();
-        }
-    }
+
+    // 5. Deduct inventory quantities - REMOVED
+    // Inventory is now deducted atomically at the time of order creation (createOrder).
+    // This allows us to reserve stock immediately and avoid race conditions.
+    console.log(`Inventory already deducted for order ${order.orderId} at creation.`);
+
 
     // 6. Generate QR code if missing
     if (!order.qrCode) {

@@ -15,7 +15,7 @@ router.get('/', order_controller_1.getMyOrders);
 router.get('/canteen/:canteenId', order_controller_1.getCanteenOrders);
 router.get('/:id', order_controller_1.getOrderById);
 router.patch('/:id/status', order_controller_1.updateOrderStatus);
-router.delete('/:id', order_controller_1.cancelOrder);
+// router.delete('/:id', cancelOrder); // Manual cancellation disabled
 // QR verification and pickup
 router.post('/verify-qr', order_controller_1.verifyOrderQR);
 router.post('/pickup', order_controller_1.completeOrderPickup);

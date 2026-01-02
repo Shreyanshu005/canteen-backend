@@ -8,6 +8,7 @@ import { generateOrderQR, verifyOrderQR as verifyQRCode } from '../utils/qrGener
 // @route   POST /api/v1/orders
 // @access  Private
 export const createOrder = async (req: Request, res: Response) => {
+    const reservedItems: { id: string; quantity: number }[] = [];
     try {
         const { canteenId, items } = req.body;
         const userId = req.user?._id;
@@ -52,7 +53,7 @@ export const createOrder = async (req: Request, res: Response) => {
             }
         }
 
-        // Validate and fetch menu items
+        // Validate and fetch menu items with ATOMIC inventory deduction
         const orderItems = [];
         let totalAmount = 0;
 
@@ -60,35 +61,42 @@ export const createOrder = async (req: Request, res: Response) => {
             const { menuItemId, quantity } = item;
 
             if (!menuItemId || !quantity || quantity < 1) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Invalid item format. Provide menuItemId and quantity',
-                });
+                throw new Error('Invalid item format. Provide menuItemId and quantity');
             }
 
-            const menuItem = await MenuItem.findById(menuItemId);
+            // ATOMICALLY check and deduct quantity
+            // This prevents race conditions where two users buy the last item simultaneously
+            const menuItem = await MenuItem.findOneAndUpdate(
+                {
+                    _id: menuItemId,
+                    canteenId: canteenId, // Ensure item belongs to this canteen
+                    availableQuantity: { $gte: quantity } // Ensure enough stock
+                },
+                { $inc: { availableQuantity: -quantity } },
+                { new: true }
+            );
+
             if (!menuItem) {
-                return res.status(404).json({
-                    success: false,
-                    error: `Menu item ${menuItemId} not found`,
-                });
+                // If null, it means either:
+                // 1. Item doesn't exist
+                // 2. Item not in this canteen
+                // 3. Insufficient quantity
+                // We'll try to find the item normally to give a specific error message
+                const checkItem = await MenuItem.findById(menuItemId);
+                if (!checkItem) {
+                    throw new Error(`Menu item ${menuItemId} not found`);
+                }
+                if (checkItem.canteenId.toString() !== canteenId) {
+                    throw new Error(`Item ${checkItem.name} does not belong to this canteen`);
+                }
+                if (checkItem.availableQuantity < quantity) {
+                    throw new Error(`Insufficient quantity for ${checkItem.name}. Available: ${checkItem.availableQuantity}`);
+                }
+                throw new Error(`Could not add item ${menuItemId}`);
             }
 
-            // Check if item belongs to the canteen
-            if (menuItem.canteenId.toString() !== canteenId) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Item ${menuItem.name} does not belong to this canteen`,
-                });
-            }
-
-            // Check availability
-            if (menuItem.availableQuantity < quantity) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Insufficient quantity for ${menuItem.name}. Available: ${menuItem.availableQuantity}`,
-                });
-            }
+            // Keep track of reserved items for rollback in case of error later
+            reservedItems.push({ id: menuItemId, quantity });
 
             orderItems.push({
                 menuItemId: menuItem._id,
@@ -115,8 +123,20 @@ export const createOrder = async (req: Request, res: Response) => {
             data: order,
         });
     } catch (err: any) {
-        console.error(err);
-        res.status(500).json({ success: false, error: 'Server Error' });
+        console.error('Order Creation Error:', err.message);
+
+        // ROLLBACK: release reserved inventory
+        if (reservedItems.length > 0) {
+            console.log('Rolling back reserved inventory items...');
+            for (const item of reservedItems) {
+                await MenuItem.findByIdAndUpdate(item.id, {
+                    $inc: { availableQuantity: item.quantity }
+                });
+            }
+        }
+
+        const statusCode = err.message.includes('found') || err.message.includes('Insufficient') ? 400 : 500;
+        res.status(statusCode).json({ success: false, error: err.message || 'Server Error' });
     }
 };
 
@@ -284,6 +304,13 @@ export const cancelOrder = async (req: Request, res: Response) => {
 
         order.status = 'cancelled';
         await order.save();
+
+        // Release inventory back to the menu items
+        for (const item of order.items) {
+            await MenuItem.findByIdAndUpdate(item.menuItemId, {
+                $inc: { availableQuantity: item.quantity }
+            });
+        }
 
         res.status(200).json({
             success: true,

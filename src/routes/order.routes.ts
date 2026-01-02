@@ -22,7 +22,7 @@ router.get('/', getMyOrders);
 router.get('/canteen/:canteenId', getCanteenOrders);
 router.get('/:id', getOrderById);
 router.patch('/:id/status', updateOrderStatus);
-router.delete('/:id', cancelOrder);
+// router.delete('/:id', cancelOrder); // Manual cancellation disabled
 
 // QR verification and pickup
 router.post('/verify-qr', verifyQR);

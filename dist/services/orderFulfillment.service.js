@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.fulfillOrder = void 0;
 const Order_1 = __importDefault(require("../models/Order"));
 const Payment_1 = __importDefault(require("../models/Payment"));
-const MenuItem_1 = __importDefault(require("../models/MenuItem"));
 const qrGenerator_1 = require("../utils/qrGenerator");
 /**
  * Shared logic to fulfill an order after successful payment.
@@ -48,15 +47,10 @@ const fulfillOrder = async (razorpayOrderId, razorpayPaymentId, paymentMethod) =
     order.paymentStatus = 'success';
     order.status = 'paid';
     order.paymentId = razorpayPaymentId;
-    // 5. Deduct inventory quantities
-    console.log(`Deducting inventory for order ${order.orderId}...`);
-    for (const item of order.items) {
-        const menuItem = await MenuItem_1.default.findById(item.menuItemId);
-        if (menuItem) {
-            menuItem.availableQuantity -= item.quantity;
-            await menuItem.save();
-        }
-    }
+    // 5. Deduct inventory quantities - REMOVED
+    // Inventory is now deducted atomically at the time of order creation (createOrder).
+    // This allows us to reserve stock immediately and avoid race conditions.
+    console.log(`Inventory already deducted for order ${order.orderId} at creation.`);
     // 6. Generate QR code if missing
     if (!order.qrCode) {
         order.qrCode = await (0, qrGenerator_1.generateOrderQR)(order.orderId);

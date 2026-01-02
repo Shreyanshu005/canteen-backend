@@ -43,4 +43,9 @@ const PaymentSchema: Schema = new Schema(
     }
 );
 
+// Indices for faster lookup
+PaymentSchema.index({ orderId: 1 });
+PaymentSchema.index({ razorpayOrderId: 1 });
+PaymentSchema.index({ razorpayPaymentId: 1 });
+
 export default mongoose.model<IPayment>('Payment', PaymentSchema);

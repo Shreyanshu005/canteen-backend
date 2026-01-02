@@ -129,10 +129,29 @@ export const getRazorpayOrderDetails = async (razorpayOrderId: string) => {
     }
 };
 
+/**
+ * Refund a payment
+ */
+export const refundPayment = async (paymentId: string, amount: number) => {
+    try {
+        const razorpay = getRazorpayInstance();
+        // Amount must be in paise
+        const refund = await razorpay.payments.refund(paymentId, {
+            amount: amount * 100,
+            speed: 'normal',
+        });
+        return refund;
+    } catch (error: any) {
+        console.error('Razorpay refund error:', error);
+        throw new Error('Failed to refund payment');
+    }
+};
+
 export default {
     createRazorpayOrder,
     verifyPaymentSignature,
     verifyWebhookSignature,
     getPaymentDetails,
     getRazorpayOrderDetails,
+    refundPayment,
 };

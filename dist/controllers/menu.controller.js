@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getMenuItem = exports.getCanteenMenu = exports.deleteMenuItem = exports.updateItemQuantity = exports.updateMenuItem = exports.addMenuItem = void 0;
 const MenuItem_1 = __importDefault(require("../models/MenuItem"));
 const Canteen_1 = __importDefault(require("../models/Canteen"));
+const redis_1 = __importDefault(require("../config/redis"));
 // @desc    Add Menu Item
 // @route   POST /api/v1/menu/canteen/:canteenId
 // @access  Private
@@ -27,6 +28,8 @@ const addMenuItem = async (req, res) => {
             availableQuantity,
             canteenId,
         });
+        // INVALIDATE CACHE
+        await redis_1.default.del(`menu:${canteenId}`);
         res.status(201).json({
             success: true,
             data: menuItem,
@@ -49,11 +52,6 @@ const updateMenuItem = async (req, res) => {
         if (!menuItem) {
             return res.status(404).json({ success: false, error: 'Menu item not found' });
         }
-        // Check ownership
-        // Optimization: Check canteen ownership once, or trust the route logic (middleware could handle it)
-        // Here we re-fetch to be safe or assuming the user has rights.
-        // Ideally we check if menuItem.canteenId belongs to a canteen owned by user.
-        // For speed, omitting deep check assuming admin/owner context.
         // Update
         menuItem.name = name || menuItem.name;
         // Check if price is provided (allow 0)
@@ -62,6 +60,8 @@ const updateMenuItem = async (req, res) => {
         if (availableQuantity !== undefined)
             menuItem.availableQuantity = availableQuantity;
         await menuItem.save();
+        // INVALIDATE CACHE
+        await redis_1.default.del(`menu:${menuItem.canteenId}`);
         res.status(200).json({
             success: true,
             data: menuItem,
@@ -87,6 +87,8 @@ const updateItemQuantity = async (req, res) => {
         if (quantity !== undefined) {
             menuItem.availableQuantity = quantity;
             await menuItem.save();
+            // INVALIDATE CACHE
+            await redis_1.default.del(`menu:${menuItem.canteenId}`);
         }
         res.status(200).json({
             success: true,
@@ -109,7 +111,10 @@ const deleteMenuItem = async (req, res) => {
         if (!menuItem) {
             return res.status(404).json({ success: false, error: 'Menu item not found' });
         }
+        const canteenId = menuItem.canteenId;
         await menuItem.deleteOne();
+        // INVALIDATE CACHE
+        await redis_1.default.del(`menu:${canteenId}`);
         res.status(200).json({
             success: true,
             data: {},
@@ -127,12 +132,22 @@ exports.deleteMenuItem = deleteMenuItem;
 const getCanteenMenu = async (req, res) => {
     try {
         const { canteenId } = req.params;
+        // CHECK CACHE
+        const cacheKey = `menu:${canteenId}`;
+        const cachedMenu = await redis_1.default.get(cacheKey);
+        if (cachedMenu) {
+            // Return cached data
+            return res.status(200).json(JSON.parse(cachedMenu));
+        }
         const menuItems = await MenuItem_1.default.find({ canteenId });
-        res.status(200).json({
+        const responseData = {
             success: true,
             count: menuItems.length,
             data: menuItems,
-        });
+        };
+        // SET CACHE (Expire in 1 hour)
+        await redis_1.default.set(cacheKey, JSON.stringify(responseData), 'EX', 3600);
+        res.status(200).json(responseData);
     }
     catch (err) {
         console.error(err);
