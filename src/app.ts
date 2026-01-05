@@ -70,10 +70,21 @@ app.use('/api/v1/orders', orderRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 
+// 404 Handler - MUST BE AFTER ALL ROUTES
+app.use((req: Request, res: Response) => {
+    res.status(404).json({
+        success: false,
+        error: `Route not found: ${req.method} ${req.originalUrl}`
+    });
+});
+
 // Error handling middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-    console.error(err.stack);
-    res.status(500).json({ success: false, error: 'Server Error' });
+    console.error('SERVER ERROR:', err);
+    res.status(500).json({
+        success: false,
+        error: err.message || 'Internal Server Error'
+    });
 });
 
 export default app;

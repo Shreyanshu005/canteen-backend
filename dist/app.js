@@ -61,10 +61,20 @@ app.use('/api/v1/menu', menu_routes_1.default);
 app.use('/api/v1/orders', order_routes_1.default);
 app.use('/api/v1/payments', payment_routes_1.default);
 app.use('/api/v1/analytics', analytics_routes_1.default);
+// 404 Handler - MUST BE AFTER ALL ROUTES
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        error: `Route not found: ${req.method} ${req.originalUrl}`
+    });
+});
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ success: false, error: 'Server Error' });
+    console.error('SERVER ERROR:', err);
+    res.status(500).json({
+        success: false,
+        error: err.message || 'Internal Server Error'
+    });
 });
 exports.default = app;
 //# sourceMappingURL=app.js.map

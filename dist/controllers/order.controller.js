@@ -32,13 +32,23 @@ const createOrder = async (req, res) => {
         if (canteen.isOpen === false) {
             return res.status(400).json({ success: false, error: 'Canteen is currently closed (Manually Closed)' });
         }
-        // Check operating hours (Automatic)
+        // Check operating hours (Automatic - IST Timezone)
         if (canteen.openingTime && canteen.closingTime) {
+            // Get current time in IST
             const now = new Date();
-            const istTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-            const currentHours = istTime.getHours();
-            const currentMinutes = istTime.getMinutes();
-            const currentTimeValue = currentHours * 60 + currentMinutes;
+            const istOption = {
+                timeZone: 'Asia/Kolkata',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            };
+            const formatter = new Intl.DateTimeFormat('en-GB', istOption);
+            const parts = formatter.formatToParts(now);
+            const hourPart = parts.find(p => p.type === 'hour');
+            const minutePart = parts.find(p => p.type === 'minute');
+            const currentH = hourPart ? hourPart.value : '0';
+            const currentM = minutePart ? minutePart.value : '0';
+            const currentTimeValue = parseInt(currentH) * 60 + parseInt(currentM);
             const [openH = 0, openM = 0] = canteen.openingTime.split(':').map(Number);
             const openTimeValue = openH * 60 + openM;
             const [closeH = 0, closeM = 0] = canteen.closingTime.split(':').map(Number);
@@ -46,7 +56,7 @@ const createOrder = async (req, res) => {
             if (currentTimeValue < openTimeValue || currentTimeValue > closeTimeValue) {
                 return res.status(400).json({
                     success: false,
-                    error: `Canteen is closed. Operating hours: ${canteen.openingTime} - ${canteen.closingTime}`
+                    error: `Canteen is closed. Operating hours: ${canteen.openingTime} - ${canteen.closingTime} (IST)`
                 });
             }
         }

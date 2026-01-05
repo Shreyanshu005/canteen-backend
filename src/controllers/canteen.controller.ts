@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 import Canteen from '../models/Canteen';
+import redis from '../config/redis';
+import { isCanteenOpen } from '../utils/time';
 
 // @desc    Create or Update Canteen
 // @route   POST /api/v1/canteens
@@ -34,6 +36,10 @@ const createCanteen = async (req: Request, res: Response) => {
             closingTime
         });
 
+        // Invalidate lists cache
+        await redis.del('canteens:all');
+        if (ownerId) await redis.del(`canteens:owner:${ownerId}`);
+
         res.status(201).json({
             success: true,
             data: canteen,
@@ -64,9 +70,18 @@ const updateCanteen = async (req: Request, res: Response, id: string) => {
 
         await canteen.save();
 
+        // INVALIDATE CACHES
+        await redis.del(`canteen:${id}`);
+        await redis.del('canteens:all');
+        await redis.del(`canteens:owner:${canteen.ownerId}`);
+        await redis.del(`menu:${id}`); // Menu depends on canteen status/hours
+
         res.status(200).json({
             success: true,
-            data: canteen,
+            data: {
+                ...canteen.toObject(),
+                isCurrentlyOpen: isCanteenOpen(canteen)
+            },
         });
     } catch (err: any) {
         console.error(err);
@@ -94,9 +109,18 @@ export const toggleCanteenStatus = async (req: Request, res: Response) => {
         canteen.isOpen = !canteen.isOpen;
         await canteen.save();
 
+        // INVALIDATE CACHES
+        await redis.del(`canteen:${req.params.id}`);
+        await redis.del('canteens:all');
+        await redis.del(`canteens:owner:${canteen.ownerId}`);
+        await redis.del(`menu:${req.params.id}`);
+
         res.status(200).json({
             success: true,
-            data: canteen,
+            data: {
+                ...canteen.toObject(),
+                isCurrentlyOpen: isCanteenOpen(canteen)
+            },
             message: `Canteen is now ${canteen.isOpen ? 'OPEN' : 'CLOSED'}`
         });
     } catch (err: any) {
@@ -110,11 +134,37 @@ export const toggleCanteenStatus = async (req: Request, res: Response) => {
 // @access  Private
 export const getAllCanteens = async (req: Request, res: Response) => {
     try {
+        const cacheKey = 'canteens:all';
+        const cachedData = await redis.get(cacheKey);
+
+        if (cachedData) {
+            const canteens = JSON.parse(cachedData);
+            // Dynamic status must be re-recalculated because time passes
+            const canteensWithStatus = canteens.map((c: any) => ({
+                ...c,
+                isCurrentlyOpen: isCanteenOpen(c)
+            }));
+            return res.status(200).json({
+                success: true,
+                count: canteens.length,
+                data: canteensWithStatus,
+                fromCache: true
+            });
+        }
+
         const canteens = await Canteen.find().populate('ownerId', 'email role');
+
+        await redis.set(cacheKey, JSON.stringify(canteens), 'EX', 3600);
+
+        const canteensWithStatus = canteens.map(canteen => ({
+            ...canteen.toObject(),
+            isCurrentlyOpen: isCanteenOpen(canteen)
+        }));
+
         res.status(200).json({
             success: true,
             count: canteens.length,
-            data: canteens,
+            data: canteensWithStatus,
         });
     } catch (err: any) {
         console.error(err);
@@ -127,9 +177,23 @@ export const getAllCanteens = async (req: Request, res: Response) => {
 // @access  Private
 export const getCanteenById = async (req: Request, res: Response) => {
     try {
-        // FAILSAFE: If "my-canteens" accidentally hits this route, return next() or handle it
         if (req.params.id === 'my-canteens') {
             return getMyCanteens(req, res);
+        }
+
+        const cacheKey = `canteen:${req.params.id}`;
+        const cachedData = await redis.get(cacheKey);
+
+        if (cachedData) {
+            const canteen = JSON.parse(cachedData);
+            return res.status(200).json({
+                success: true,
+                data: {
+                    ...canteen,
+                    isCurrentlyOpen: isCanteenOpen(canteen)
+                },
+                fromCache: true
+            });
         }
 
         const canteen = await Canteen.findById(req.params.id).populate('ownerId', 'email role');
@@ -138,9 +202,14 @@ export const getCanteenById = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
         }
 
+        await redis.set(cacheKey, JSON.stringify(canteen), 'EX', 3600);
+
         res.status(200).json({
             success: true,
-            data: canteen,
+            data: {
+                ...canteen.toObject(),
+                isCurrentlyOpen: isCanteenOpen(canteen)
+            },
         });
     } catch (err: any) {
         console.error(err);
@@ -151,8 +220,6 @@ export const getCanteenById = async (req: Request, res: Response) => {
 // @desc    Delete Canteen
 // @route   DELETE /api/v1/canteens/:id
 // @access  Private
-// @note    Using POST request in some contexts? No, sticking to DELETE as per updated req.
-//          Wait, user req said: postman request DELETE '/api/v1/canteens/...'
 export const deleteCanteen = async (req: Request, res: Response) => {
     try {
         const canteen = await Canteen.findById(req.params.id);
@@ -161,7 +228,14 @@ export const deleteCanteen = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, error: 'Canteen not found' });
         }
 
+        const ownerId = canteen.ownerId;
         await canteen.deleteOne();
+
+        // INVALIDATE CACHES
+        await redis.del(`canteen:${req.params.id}`);
+        await redis.del('canteens:all');
+        await redis.del(`canteens:owner:${ownerId}`);
+        await redis.del(`menu:${req.params.id}`);
 
         res.status(200).json({
             success: true,
@@ -178,22 +252,41 @@ export const deleteCanteen = async (req: Request, res: Response) => {
 // @access  Private
 export const getMyCanteens = async (req: Request, res: Response) => {
     try {
-        console.log('Fetching canteens for user:', req.user?._id);
-
-        if (!req.user?._id) {
-            console.error('User ID not found in req.user');
+        const userId = req.user?._id;
+        if (!userId) {
             return res.status(401).json({ success: false, error: 'User not authenticated properly' });
         }
 
-        // Assuming req.user is populated by auth middleware
-        const canteens = await Canteen.find({ ownerId: req.user._id });
+        const cacheKey = `canteens:owner:${userId}`;
+        const cachedData = await redis.get(cacheKey);
 
-        console.log(`Found ${canteens.length} canteens for user ${req.user._id}`);
+        if (cachedData) {
+            const canteens = JSON.parse(cachedData);
+            const canteensWithStatus = canteens.map((c: any) => ({
+                ...c,
+                isCurrentlyOpen: isCanteenOpen(c)
+            }));
+            return res.status(200).json({
+                success: true,
+                count: canteens.length,
+                data: canteensWithStatus,
+                fromCache: true
+            });
+        }
+
+        const canteens = await Canteen.find({ ownerId: userId });
+
+        await redis.set(cacheKey, JSON.stringify(canteens), 'EX', 3600);
+
+        const canteensWithStatus = canteens.map(canteen => ({
+            ...canteen.toObject(),
+            isCurrentlyOpen: isCanteenOpen(canteen)
+        }));
 
         res.status(200).json({
             success: true,
             count: canteens.length,
-            data: canteens,
+            data: canteensWithStatus,
         });
     } catch (err: any) {
         console.error('Error in getMyCanteens:', err);

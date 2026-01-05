@@ -1,14 +1,14 @@
 import cron from 'node-cron';
 import Order from '../models/Order';
 import MenuItem from '../models/MenuItem';
-import { refundPayment } from '../utils/razorpay';
+import redis from '../config/redis';
 
 /**
  * Logic to cleanup pending orders older than 5 minutes
  */
 export const cleanupPendingOrders = async () => {
     try {
-        console.log('🧹 Running (PEMDING) order cleanup job...');
+        console.log('🧹 Running (PENDING) order cleanup job...');
 
         // Calculate timestamp for 5 minutes ago
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -24,6 +24,9 @@ export const cleanupPendingOrders = async () => {
         }
 
         console.log(`⚠️  Found ${expiredOrders.length} potential expired orders. Processing...`);
+
+        // Collect unique canteen IDs for cache invalidation
+        const affectedCanteens = new Set<string>();
 
         for (const order of expiredOrders) {
             try {
@@ -44,6 +47,8 @@ export const cleanupPendingOrders = async () => {
                     continue;
                 }
 
+                affectedCanteens.add(lockedOrder.canteenId.toString());
+
                 // Now safe to restore inventory
                 console.log(`Restoring inventory for expired order: ${lockedOrder.orderId}`);
                 for (const item of lockedOrder.items) {
@@ -57,75 +62,18 @@ export const cleanupPendingOrders = async () => {
                 console.error(`Failed to process expired order ${order.orderId}:`, err);
             }
         }
-    } catch (error) {
-        console.error('Error in order cleanup job:', error);
-    }
-};
 
-/**
- * Logic to refund paid orders older than 24 hours
- */
-export const cleanupExpiredPaidOrders = async () => {
-    try {
-        console.log('🧹 Running 24h refund cleanup job...');
-
-        // 24 hours ago
-        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-        // Find valid PAID orders created > 24h ago
-        const expiredPaidOrders = await Order.find({
-            status: 'paid',
-            paymentStatus: 'success',
-            createdAt: { $lt: twentyFourHoursAgo }
-        });
-
-        if (expiredPaidOrders.length === 0) {
-            return;
-        }
-
-        console.log(`⚠️  Found ${expiredPaidOrders.length} expired paid orders to refund...`);
-
-        for (const order of expiredPaidOrders) {
+        // Invalidate cache for all affected canteens
+        for (const canteenId of affectedCanteens) {
             try {
-                // ATOMIC CHECK: Lock the order
-                const lockedOrder = await Order.findOneAndUpdate(
-                    {
-                        _id: order._id,
-                        status: 'paid',
-                        paymentStatus: 'success'
-                    },
-                    {
-                        status: 'cancelled',
-                        paymentStatus: 'refunded'
-                    },
-                    { new: true }
-                );
-
-                if (!lockedOrder) continue;
-
-                // Initiate Refund
-                if (lockedOrder.paymentId) {
-                    console.log(`💸 Initiating refund for order: ${lockedOrder.orderId}`);
-                    await refundPayment(lockedOrder.paymentId, lockedOrder.totalAmount);
-                }
-
-                // Restore Inventory
-                console.log(`Restoring inventory for refunded order: ${lockedOrder.orderId}`);
-                for (const item of lockedOrder.items) {
-                    await MenuItem.findByIdAndUpdate(item.menuItemId, {
-                        $inc: { availableQuantity: item.quantity }
-                    });
-                }
-
-                console.log(`✅ Refunded and cancelled order: ${lockedOrder.orderId}`);
-
-            } catch (err) {
-                console.error(`Failed to refund order ${order.orderId}:`, err);
+                await redis.del(`menu:${canteenId}`);
+                console.log(`♻️  Invalidated menu cache for canteen: ${canteenId}`);
+            } catch (e) {
+                console.error(`Failed to invalidate cache for canteen ${canteenId}:`, e);
             }
         }
-
     } catch (error) {
-        console.error('Error in refund cleanup job:', error);
+        console.error('Error in order cleanup job:', error);
     }
 };
 
@@ -141,11 +89,5 @@ export const initOrderCleanupJob = () => {
         await cleanupPendingOrders();
     });
 
-    // Run every hour: '0 * * * *' to check for expired PAID orders (24 hours)
-    cron.schedule('0 * * * *', async () => {
-        await cleanupExpiredPaidOrders();
-    });
-
     console.log('✅ Order Cleanup Job Scheduled (Runs every minute)');
-    console.log('✅ Refund Cleanup Job Scheduled (Runs every hour)');
 };

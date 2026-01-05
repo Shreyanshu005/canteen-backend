@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import Order from '../models/Order';
 import Canteen from '../models/Canteen';
+import { isCanteenOpen } from '../utils/time';
 
 // @desc    Get canteen analytics (sales, earnings, orders)
 // @route   GET /api/v1/analytics/canteen/:canteenId?period=day|week|month
@@ -112,6 +113,7 @@ export const getCanteenAnalytics = async (req: Request, res: Response) => {
                     id: canteen._id,
                     name: canteen.name,
                     place: canteen.place,
+                    isCurrentlyOpen: isCanteenOpen(canteen)
                 },
             },
         });

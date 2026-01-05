@@ -7,6 +7,7 @@ exports.getMenuItem = exports.getCanteenMenu = exports.deleteMenuItem = exports.
 const MenuItem_1 = __importDefault(require("../models/MenuItem"));
 const Canteen_1 = __importDefault(require("../models/Canteen"));
 const redis_1 = __importDefault(require("../config/redis"));
+const time_1 = require("../utils/time");
 // @desc    Add Menu Item
 // @route   POST /api/v1/menu/canteen/:canteenId
 // @access  Private
@@ -29,7 +30,8 @@ const addMenuItem = async (req, res) => {
             canteenId,
         });
         // INVALIDATE CACHE
-        await redis_1.default.del(`menu:${canteenId}`);
+        if (canteenId)
+            await redis_1.default.del(`menu:${canteenId.toString()}`);
         res.status(201).json({
             success: true,
             data: menuItem,
@@ -61,7 +63,7 @@ const updateMenuItem = async (req, res) => {
             menuItem.availableQuantity = availableQuantity;
         await menuItem.save();
         // INVALIDATE CACHE
-        await redis_1.default.del(`menu:${menuItem.canteenId}`);
+        await redis_1.default.del(`menu:${menuItem.canteenId.toString()}`);
         res.status(200).json({
             success: true,
             data: menuItem,
@@ -88,7 +90,7 @@ const updateItemQuantity = async (req, res) => {
             menuItem.availableQuantity = quantity;
             await menuItem.save();
             // INVALIDATE CACHE
-            await redis_1.default.del(`menu:${menuItem.canteenId}`);
+            await redis_1.default.del(`menu:${menuItem.canteenId.toString()}`);
         }
         res.status(200).json({
             success: true,
@@ -114,7 +116,8 @@ const deleteMenuItem = async (req, res) => {
         const canteenId = menuItem.canteenId;
         await menuItem.deleteOne();
         // INVALIDATE CACHE
-        await redis_1.default.del(`menu:${canteenId}`);
+        if (canteenId)
+            await redis_1.default.del(`menu:${canteenId.toString()}`);
         res.status(200).json({
             success: true,
             data: {},
@@ -136,14 +139,26 @@ const getCanteenMenu = async (req, res) => {
         const cacheKey = `menu:${canteenId}`;
         const cachedMenu = await redis_1.default.get(cacheKey);
         if (cachedMenu) {
-            // Return cached data
-            return res.status(200).json(JSON.parse(cachedMenu));
+            const parsedCache = JSON.parse(cachedMenu);
+            // Re-calculate isCurrentlyOpen because time passes
+            if (parsedCache.canteen) {
+                parsedCache.canteen.isCurrentlyOpen = (0, time_1.isCanteenOpen)(parsedCache.canteen);
+            }
+            return res.status(200).json({
+                ...parsedCache,
+                fromCache: true
+            });
         }
+        const canteen = await Canteen_1.default.findById(canteenId).select('name place isOpen openingTime closingTime');
         const menuItems = await MenuItem_1.default.find({ canteenId });
         const responseData = {
             success: true,
             count: menuItems.length,
             data: menuItems,
+            canteen: canteen ? {
+                ...canteen.toObject(),
+                isCurrentlyOpen: (0, time_1.isCanteenOpen)(canteen)
+            } : null
         };
         // SET CACHE (Expire in 1 hour)
         await redis_1.default.set(cacheKey, JSON.stringify(responseData), 'EX', 3600);

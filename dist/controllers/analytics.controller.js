@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getEarningsBreakdown = exports.getCanteenAnalytics = void 0;
 const Order_1 = __importDefault(require("../models/Order"));
 const Canteen_1 = __importDefault(require("../models/Canteen"));
+const time_1 = require("../utils/time");
 // @desc    Get canteen analytics (sales, earnings, orders)
 // @route   GET /api/v1/analytics/canteen/:canteenId?period=day|week|month
 // @access  Private (Admin/Canteen Owner)
@@ -103,6 +104,7 @@ const getCanteenAnalytics = async (req, res) => {
                     id: canteen._id,
                     name: canteen.name,
                     place: canteen.place,
+                    isCurrentlyOpen: (0, time_1.isCanteenOpen)(canteen)
                 },
             },
         });

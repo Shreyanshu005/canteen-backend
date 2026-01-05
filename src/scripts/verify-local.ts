@@ -76,15 +76,15 @@ const runVerification = async () => {
         }
         console.log('');
 
-        // 4. Test Order Expiry & Refund Logic
-        console.log('4️⃣  Testing Expiry & Refund Logic...');
+        // 4. Test Order Expiry Logic
+        console.log('4️⃣  Testing Expiry Logic...');
 
         // We need database access for this.
         // Importing here to avoid "Top-level await" issues if not in module
         const { default: connectDB } = await import('../config/db');
         const { default: Order } = await import('../models/Order');
         const { default: mongoose } = await import('mongoose');
-        const { cleanupPendingOrders, cleanupExpiredPaidOrders } = await import('../services/orderCleanup.service');
+        const { cleanupPendingOrders } = await import('../services/orderCleanup.service');
 
         await connectDB();
 
@@ -112,37 +112,6 @@ const runVerification = async () => {
 
         // Cleanup
         await Order.findByIdAndDelete(staleOrder._id);
-
-
-        // 4.2 TEST 24-Hour Refund (Simulation)
-        console.log('   🔹 Testing 24-hr Auto-Refund (Selection Logic)...');
-
-        // Create a stale paid order (created 25 hours ago)
-        const stalePaidOrder = await Order.create({
-            userId: new mongoose.Types.ObjectId(),
-            canteenId: canteenId,
-            items: [{ menuItemId: new mongoose.Types.ObjectId(), name: 'Test Item', price: 100, quantity: 1 }],
-            totalAmount: 100,
-            status: 'paid',
-            paymentStatus: 'success',
-            paymentId: 'pay_fake_test_id',
-            createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) // 25 hours ago
-        });
-
-        // Run cleanup - This will fail at Razorpay but should attempt it
-        // We can check logs, or just verify it doesn't crash
-        try {
-            await cleanupExpiredPaidOrders();
-            // Since paymentId is fake, it won't actually change status to refunded because execution stops at error
-            // But we can check if it found it? 
-            console.log('   Basic execution of Refund Job completed (Expect Razorpay Error logs above)');
-            console.log('   ✅ Refund Job Logic triggered successfully');
-        } catch (e) {
-            console.log('   ❌ Refund Job crashed');
-        }
-
-        // Cleanup
-        await Order.findByIdAndDelete(stalePaidOrder._id);
 
         // Close DB
         await mongoose.connection.close();
