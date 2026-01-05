@@ -49,7 +49,7 @@ import { handleWebhook } from './controllers/payment.controller';
 
 // Basic route for testing
 app.get('/', (req: Request, res: Response) => {
-    res.send('Canteen Backend API is running');
+    res.send('BunkBite Backend API is running');
 });
 
 // Safety Fallback: Razorpay often hits the root / instead of the specific path

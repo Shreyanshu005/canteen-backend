@@ -19,7 +19,7 @@ const sendEmail = async (options: EmailOptions) => {
 
     // Define email options
     const mailOptions = {
-        from: `${process.env.FROM_NAME || 'Canteen App'} <${process.env.EMAIL_USER}>`,
+        from: `${process.env.FROM_NAME || 'BunkBite'} <${process.env.EMAIL_USER}>`,
         to: options.email,
         subject: options.subject,
         text: options.message,
