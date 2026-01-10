@@ -1,22 +1,27 @@
 import cron from 'node-cron';
 import Order from '../models/Order';
+import Payment from '../models/Payment';
 import MenuItem from '../models/MenuItem';
 import redis from '../config/redis';
+import { fulfillOrder } from './orderFulfillment.service';
+
+// Timeout for pending orders (5 minutes)
+const PENDING_ORDER_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
- * Logic to cleanup pending orders older than 5 minutes
+ * Logic to cleanup pending orders older than a certain threshold
  */
 export const cleanupPendingOrders = async () => {
     try {
-        console.log('🧹 Running (PENDING) order cleanup job...');
+        console.log(`🧹 Running (PENDING) order cleanup job (Threshold: 5 minutes)...`);
 
-        // Calculate timestamp for 5 minutes ago
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        // Calculate timestamp for the timeout
+        const expiryTime = new Date(Date.now() - PENDING_ORDER_TIMEOUT_MS);
 
         // Find all PENDING orders created more than 5 minutes ago
         const expiredOrders = await Order.find({
             status: 'pending',
-            createdAt: { $lt: fiveMinutesAgo }
+            createdAt: { $lt: expiryTime }
         });
 
         if (expiredOrders.length === 0) {
@@ -30,6 +35,22 @@ export const cleanupPendingOrders = async () => {
 
         for (const order of expiredOrders) {
             try {
+                // IMPORTANT: Check if there's a successful payment record for this order
+                // before canceling it. This handles cases where fulfillment might have failed
+                // or is still processing.
+                const payment = await Payment.findOne({ orderId: order._id, status: 'success' });
+                if (payment) {
+                    console.log(`ℹ️  Skipping cleanup for order ${order.orderId} - Found successful payment record. Will attempt re-fulfillment.`);
+                    // Optional: We could call fulfillOrder here, but it requires razorpayOrderId
+                    // which we have in the payment record.
+                    try {
+                        await fulfillOrder(payment.razorpayOrderId, payment.razorpayPaymentId || 'N/A', payment.paymentMethod || 'unknown');
+                    } catch (fulfillErr) {
+                        console.error(`Failed to auto-fulfill order ${order.orderId} during cleanup:`, fulfillErr);
+                    }
+                    continue;
+                }
+
                 // ATOMIC CHECK: Try to mark as 'cancelled' immediately to claim it.
                 // This prevents double-processing if the cron job overlaps or runs twice.
                 const lockedOrder = await Order.findOneAndUpdate(
