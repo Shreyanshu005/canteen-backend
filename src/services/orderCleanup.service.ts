@@ -41,12 +41,20 @@ export const cleanupPendingOrders = async () => {
                 const payment = await Payment.findOne({ orderId: order._id, status: 'success' });
                 if (payment) {
                     console.log(`ℹ️  Skipping cleanup for order ${order.orderId} - Found successful payment record. Will attempt re-fulfillment.`);
-                    // Optional: We could call fulfillOrder here, but it requires razorpayOrderId
-                    // which we have in the payment record.
-                    try {
-                        await fulfillOrder(payment.razorpayOrderId, payment.razorpayPaymentId || 'N/A', payment.paymentMethod || 'unknown');
-                    } catch (fulfillErr) {
-                        console.error(`Failed to auto-fulfill order ${order.orderId} during cleanup:`, fulfillErr);
+
+                    // Only attempt fulfillment if order is still in pending status
+                    // If it's in any other status, it means it's already been processed or there's an issue
+                    const currentOrder = await Order.findById(order._id);
+                    if (currentOrder && currentOrder.status === 'pending' && currentOrder.paymentStatus === 'pending') {
+                        try {
+                            await fulfillOrder(payment.razorpayOrderId, payment.razorpayPaymentId || 'N/A', payment.paymentMethod || 'unknown');
+                            console.log(`✅ Successfully re-fulfilled order ${order.orderId}`);
+                        } catch (fulfillErr) {
+                            console.error(`Failed to auto-fulfill order ${order.orderId} during cleanup:`, fulfillErr);
+                            // Don't retry - let it be handled manually or by next cleanup cycle
+                        }
+                    } else {
+                        console.log(`ℹ️  Order ${order.orderId} already processed or in non-pending state. Skipping re-fulfillment.`);
                     }
                     continue;
                 }
