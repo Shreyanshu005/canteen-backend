@@ -3,6 +3,7 @@ import Payment from '../models/Payment';
 import MenuItem from '../models/MenuItem';
 import redis from '../config/redis';
 import { generateOrderQR } from '../utils/qrGenerator';
+import { getRazorpayOrderDetails } from '../utils/razorpay';
 
 /**
  * Shared logic to fulfill an order after successful payment.
@@ -31,19 +32,59 @@ export const fulfillOrder = async (razorpayOrderId: string, razorpayPaymentId: s
         payment = await Payment.findOne({ razorpayOrderId });
 
         if (!payment) {
-            console.error(`❌ Payment record not found for Razorpay Order ID: ${razorpayOrderId}`);
-            throw new Error(`Payment record not found for Razorpay Order ID: ${razorpayOrderId}`);
-        }
+            // Payment record doesn't exist at all - this can happen when webhook arrives
+            // before the user calls /payments/initiate (race condition)
+            console.log(`⚠️  Payment record not found for Razorpay Order ID: ${razorpayOrderId}`);
+            console.log(`🔍 Fetching Razorpay order details to find matching order...`);
 
-        console.log(`ℹ️  Payment ${razorpayOrderId} already marked as ${payment.status}.`);
+            try {
+                // Fetch the Razorpay order details to get the receipt (which contains our orderId)
+                const razorpayOrderDetails = await getRazorpayOrderDetails(razorpayOrderId);
+                const ourOrderId = razorpayOrderDetails.receipt; // This is our custom orderId
 
-        // If it was 'success' but had 'N/A' as payment ID (from order.paid event), 
-        // and now we have a real payment ID (from payment.captured), update it.
-        if (payment.status === 'success' && payment.razorpayPaymentId === 'N/A' && razorpayPaymentId !== 'N/A') {
-            console.log(`📝 Updating payment ${razorpayOrderId} with real Payment ID: ${razorpayPaymentId}`);
-            payment.razorpayPaymentId = razorpayPaymentId;
-            payment.paymentMethod = paymentMethod;
-            await payment.save();
+                if (!ourOrderId) {
+                    console.error(`❌ No receipt found in Razorpay order ${razorpayOrderId}`);
+                    throw new Error(`Cannot match order: No receipt in Razorpay order ${razorpayOrderId}`);
+                }
+
+                console.log(`📋 Found receipt in Razorpay order: ${ourOrderId}`);
+
+                // Find our order using the orderId from the receipt
+                const matchedOrder = await Order.findOne({ orderId: ourOrderId });
+
+                if (!matchedOrder) {
+                    console.error(`❌ Could not find order with orderId: ${ourOrderId}`);
+                    throw new Error(`Order not found for orderId: ${ourOrderId} (from Razorpay receipt)`);
+                }
+
+                console.log(`✅ Matched order: ${matchedOrder.orderId} (${matchedOrder._id})`);
+
+                // Create the payment record from webhook data
+                console.log(`📝 Creating payment record for order ${matchedOrder.orderId} from webhook data`);
+                payment = await Payment.create({
+                    orderId: matchedOrder._id,
+                    razorpayOrderId,
+                    razorpayPaymentId,
+                    amount: matchedOrder.totalAmount,
+                    status: 'success',
+                    paymentMethod
+                });
+                console.log(`✅ Payment record created: ${payment._id}`);
+            } catch (err: any) {
+                console.error(`❌ Failed to create payment record from webhook:`, err);
+                throw new Error(`Payment record not found and failed to create from webhook: ${err.message}`);
+            }
+        } else {
+            console.log(`ℹ️  Payment ${razorpayOrderId} already marked as ${payment.status}.`);
+
+            // If it was 'success' but had 'N/A' as payment ID (from order.paid event), 
+            // and now we have a real payment ID (from payment.captured), update it.
+            if (payment.status === 'success' && payment.razorpayPaymentId === 'N/A' && razorpayPaymentId !== 'N/A') {
+                console.log(`📝 Updating payment ${razorpayOrderId} with real Payment ID: ${razorpayPaymentId}`);
+                payment.razorpayPaymentId = razorpayPaymentId;
+                payment.paymentMethod = paymentMethod;
+                await payment.save();
+            }
         }
     } else {
         console.log(`✅ Payment record ${payment._id} updated to success.`);

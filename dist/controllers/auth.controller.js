@@ -46,13 +46,13 @@ const sendOtp = async (req, res) => {
         }
         console.log('User saved. Sending Email...');
         console.log(`OTP for ${email}: ${otp}`);
-        const message = `Your OTP is ${otp}`;
+        const message = `Your BunkBite verification code is ${otp}`;
         const htmlContent = (0, emailTemplates_1.getOTPEmailTemplate)(otp);
         try {
             console.log('Calling sendEmail...');
             await (0, sendEmail_1.default)({
                 email: user.email,
-                subject: '🔐 Your Canteen App Verification Code',
+                subject: 'Your BunkBite Verification Code',
                 message,
                 html: htmlContent,
             });

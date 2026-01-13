@@ -44,7 +44,7 @@ app.use((req, res, next) => {
 const payment_controller_1 = require("./controllers/payment.controller");
 // Basic route for testing
 app.get('/', (req, res) => {
-    res.send('Canteen Backend API is running');
+    res.send('BunkBite Backend API is running');
 });
 // Safety Fallback: Razorpay often hits the root / instead of the specific path
 app.post('/', payment_controller_1.handleWebhook);

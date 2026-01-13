@@ -185,10 +185,14 @@ const handleWebhook = async (req, res) => {
                 if (!orderEntity)
                     return res.status(400).json({ success: false, error: 'Invalid payload' });
                 razorpayOrderId = orderEntity.id;
-                // For order.paid, we don't always get the payment ID directly in the entity, 
-                // but fulfillOrder handles the core logic.
+                // Try to get payment ID if available in payload
+                const paymentEntity = req.body.payload?.payment?.entity;
+                if (paymentEntity) {
+                    razorpayPaymentId = paymentEntity.id;
+                    paymentMethod = paymentEntity.method || 'unknown';
+                }
             }
-            console.log(`Processing fulfillment for Razorpay Order: ${razorpayOrderId}`);
+            console.log(`Processing fulfillment for Razorpay Order: ${razorpayOrderId} with Payment ID: ${razorpayPaymentId}`);
             // Fulfill order via shared service
             await (0, orderFulfillment_service_1.fulfillOrder)(razorpayOrderId, razorpayPaymentId, paymentMethod);
         }
